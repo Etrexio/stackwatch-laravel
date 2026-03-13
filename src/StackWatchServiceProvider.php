@@ -94,28 +94,11 @@ class StackWatchServiceProvider extends ServiceProvider
 
     protected function registerBreadcrumbListeners(): void
     {
-        if (! config('stackwatch.breadcrumbs.enabled', true)) {
-            return;
-        }
-
-        // Log breadcrumbs
-        if (config('stackwatch.breadcrumbs.capture_logs', true)) {
-            Event::listen(MessageLogged::class, function (MessageLogged $event) {
-                if ($event->level === 'debug') {
-                    return;
-                }
-
-                app(StackWatch::class)->addBreadcrumb(
-                    'log',
-                    $event->message,
-                    $event->context ?? [],
-                    $event->level
-                );
-            });
-        }
+        // Capture logs as events AND/OR breadcrumbs
+        $this->registerLogListener();
 
         // Query breadcrumbs
-        if (config('stackwatch.breadcrumbs.capture_queries', true)) {
+        if (config('stackwatch.breadcrumbs.enabled', true) && config('stackwatch.breadcrumbs.capture_queries', true)) {
             DB::listen(function ($query) {
                 $slowThreshold = config('stackwatch.performance.slow_query_threshold', 100);
 
@@ -131,6 +114,63 @@ class StackWatchServiceProvider extends ServiceProvider
                 );
             });
         }
+    }
+
+    /**
+     * Register log listener to capture Laravel logs.
+     */
+    protected function registerLogListener(): void
+    {
+        $captureAsEvents = config('stackwatch.logging.capture_as_events', true);
+        $captureBreadcrumbs = config('stackwatch.breadcrumbs.enabled', true) 
+            && config('stackwatch.breadcrumbs.capture_logs', true);
+
+        if (!$captureAsEvents && !$captureBreadcrumbs) {
+            return;
+        }
+
+        $minLevel = config('stackwatch.logging.level', 'debug');
+        $sampleRate = config('stackwatch.logging.sample_rate', 1.0);
+        $levels = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
+        $minLevelIndex = array_search($minLevel, $levels);
+
+        Event::listen(MessageLogged::class, function (MessageLogged $event) use (
+            $captureAsEvents, $captureBreadcrumbs, $levels, $minLevelIndex, $sampleRate
+        ) {
+            // Check minimum level
+            $eventLevelIndex = array_search($event->level, $levels);
+            if ($eventLevelIndex === false || $eventLevelIndex < $minLevelIndex) {
+                return;
+            }
+
+            // Prevent infinite loop - don't capture our own logs
+            if (isset($event->context['stackwatch_internal'])) {
+                return;
+            }
+
+            $stackWatch = app(StackWatch::class);
+
+            // Add as breadcrumb
+            if ($captureBreadcrumbs) {
+                $stackWatch->addBreadcrumb(
+                    'log',
+                    $event->message,
+                    $event->context ?? [],
+                    $event->level
+                );
+            }
+
+            // Send as event
+            if ($captureAsEvents) {
+                // Apply sampling for non-error logs
+                $isError = in_array($event->level, ['error', 'critical', 'alert', 'emergency']);
+                if (!$isError && $sampleRate < 1.0 && mt_rand() / mt_getrandmax() > $sampleRate) {
+                    return;
+                }
+
+                $stackWatch->captureLog($event->message, $event->level, $event->context ?? []);
+            }
+        });
     }
 
     /**
