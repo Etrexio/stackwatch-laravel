@@ -87,23 +87,30 @@ class StackWatchMiddleware
         }
 
         $duration = (microtime(true) - $startTime) * 1000;
-        $memoryUsed = memory_get_usage() - $startMemory;
+        $memoryPeak = memory_get_peak_usage(true) / 1024 / 1024; // MB
+
+        // Build transaction name
+        $routeName = $request->route()?->getName();
+        $name = $routeName 
+            ? $request->method() . ' ' . $routeName
+            : $request->method() . ' ' . $request->path();
 
         $this->stackWatch->capturePerformance([
-            'request' => [
+            'name' => $name,
+            'duration_ms' => round($duration, 2),
+            'operation' => 'http',
+            'status' => $response->getStatusCode() < 400 ? 'ok' : 'error',
+            'memory_peak_mb' => round($memoryPeak, 2),
+            'context' => [
                 'url' => $request->fullUrl(),
                 'method' => $request->method(),
-                'route' => $request->route()?->getName(),
-            ],
-            'response' => [
+                'route' => $routeName,
                 'status_code' => $response->getStatusCode(),
             ],
-            'metrics' => [
-                'duration_ms' => round($duration, 2),
-                'memory_bytes' => $memoryUsed,
-                'memory_peak_bytes' => memory_get_peak_usage(),
+            'tags' => [
+                'http.method' => $request->method(),
+                'http.status_code' => (string) $response->getStatusCode(),
             ],
-            'breadcrumbs' => $this->stackWatch->getBreadcrumbs(),
         ]);
     }
 }

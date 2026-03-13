@@ -53,14 +53,18 @@ class StackWatch
             return null;
         }
 
-        $event = [
+        // Build event with API-expected format
+        $event = array_merge([
             'type' => 'performance',
             'timestamp' => now()->toIso8601String(),
             'environment' => config('stackwatch.environment'),
             'release' => config('stackwatch.release'),
-            'data' => $data,
-            'context' => $this->getFullContext(),
-        ];
+        ], $data);
+
+        // Add context if not already present
+        if (!isset($event['context'])) {
+            $event['context'] = $this->getFullContext();
+        }
 
         return $this->transport->send($event);
     }
