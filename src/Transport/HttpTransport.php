@@ -196,14 +196,18 @@ class HttpTransport
             } catch (GuzzleException $e) {
                 // Check if this is a rate limit response (429)
                 if ($e->getCode() === 429) {
+                    Log::debug('StackWatch: Rate limited by server, buffering event');
                     return $this->bufferEvent($event);
                 }
 
                 $attempt++;
 
                 if ($attempt >= $this->retryAttempts) {
-                    Log::warning('StackWatch: Failed to send event after ' . $this->retryAttempts . ' attempts', [
+                    Log::error('StackWatch: Failed to send event after ' . $this->retryAttempts . ' attempts', [
+                        'endpoint' => $endpoint ?? 'unknown',
                         'error' => $e->getMessage(),
+                        'code' => $e->getCode(),
+                        'event_type' => $event['type'] ?? 'unknown',
                     ]);
 
                     // Buffer failed events if configured
@@ -214,6 +218,7 @@ class HttpTransport
                     return null;
                 }
 
+                Log::debug('StackWatch: Retry attempt ' . $attempt . ' after error: ' . $e->getMessage());
                 usleep($this->retryDelay * 1000);
             }
         }

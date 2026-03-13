@@ -54,11 +54,18 @@ class TestCommand extends Command
             ]
         );
 
-        if ($eventId) {
+        if ($eventId === 'buffered') {
+            $this->error('❌ Event was buffered - API request failed');
+            $this->info('  Check storage/logs/laravel.log for details');
+            $this->info('  Buffered events: ' . $transport->getBufferSize());
+            return Command::FAILURE;
+        } elseif ($eventId) {
             $this->info('✓ Test event sent successfully');
             $this->info('  Event ID: ' . $eventId);
         } else {
-            $this->warn('⚠ Test event may have been queued or failed to send');
+            $this->error('❌ Test event failed to send');
+            $this->info('  Check storage/logs/laravel.log for details');
+            return Command::FAILURE;
         }
 
         $this->newLine();
