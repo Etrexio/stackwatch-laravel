@@ -210,11 +210,21 @@ class StackWatchMiddleware
         
         $batchSize = config('stackwatch.performance.aggregate.batch_size', 50);
         $flushInterval = config('stackwatch.performance.aggregate.flush_interval', 60);
-        $lastFlush = Cache::get(self::PERF_LAST_FLUSH_KEY, 0);
+        
+        // Initialize last flush time if not set
+        $lastFlush = Cache::get(self::PERF_LAST_FLUSH_KEY);
+        if ($lastFlush === null) {
+            Cache::put(self::PERF_LAST_FLUSH_KEY, time(), now()->addMinutes(5));
+            return; // Don't flush on first request, start accumulating
+        }
+        
         $timeSinceLastFlush = time() - $lastFlush;
 
-        // Flush if batch size reached or interval passed
-        if ($totalCount >= $batchSize || ($totalCount > 0 && $timeSinceLastFlush >= $flushInterval)) {
+        // Flush if batch size reached or interval passed (with minimum count)
+        $shouldFlush = $totalCount >= $batchSize || 
+                       ($totalCount >= 5 && $timeSinceLastFlush >= $flushInterval);
+        
+        if ($shouldFlush) {
             $this->flushPerformanceBuffer();
         }
     }
