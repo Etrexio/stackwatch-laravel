@@ -138,8 +138,25 @@ return [
     */
     'performance' => [
         'enabled' => env('STACKWATCH_PERFORMANCE_ENABLED', true),
-        'sample_rate' => env('STACKWATCH_PERFORMANCE_SAMPLE_RATE', 1.0),
+        
+        // Sampling rate for normal requests (0.0 to 1.0)
+        // Default 0.1 = only 10% of requests are sampled
+        'sample_rate' => env('STACKWATCH_PERFORMANCE_SAMPLE_RATE', 0.1),
+        
+        // Slow request threshold in milliseconds
+        // Requests slower than this are ALWAYS sent (ignores sample_rate)
+        'slow_request_threshold' => env('STACKWATCH_SLOW_REQUEST_THRESHOLD', 1000),
+        
+        // Slow query threshold for breadcrumbs
         'slow_query_threshold' => 100, // milliseconds
+        
+        // Aggregation settings
+        // Instead of sending each request, aggregate N requests and send summary
+        'aggregate' => [
+            'enabled' => env('STACKWATCH_PERFORMANCE_AGGREGATE', true),
+            'batch_size' => env('STACKWATCH_PERFORMANCE_BATCH_SIZE', 50),
+            'flush_interval' => 60, // seconds - flush even if batch not full
+        ],
     ],
 
     /*

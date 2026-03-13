@@ -297,6 +297,56 @@ To disable buffering (drop events when rate limited):
 ],
 ```
 
+## Performance Monitoring
+
+Performance monitoring is enabled by default with smart defaults to minimize overhead:
+
+### Aggregation (Default)
+
+Instead of sending every request, StackWatch aggregates metrics and sends summaries:
+
+- Collects 50 requests (configurable)
+- Sends aggregated stats: avg/min/max duration, error rate, request count
+- Flushes every 60 seconds even if batch not full
+
+```env
+# Disable aggregation (send individual requests with sampling)
+STACKWATCH_PERFORMANCE_AGGREGATE=false
+
+# Change batch size
+STACKWATCH_PERFORMANCE_BATCH_SIZE=100
+```
+
+### Slow Requests
+
+Requests slower than the threshold are **always** sent immediately (not aggregated):
+
+```env
+# Requests over 1000ms are always reported (default)
+STACKWATCH_SLOW_REQUEST_THRESHOLD=1000
+
+# Lower threshold for more sensitive monitoring
+STACKWATCH_SLOW_REQUEST_THRESHOLD=500
+```
+
+### Sampling (When Aggregation Disabled)
+
+If aggregation is disabled, sampling controls how many requests are sent:
+
+```env
+# Only send 10% of requests (default)
+STACKWATCH_PERFORMANCE_SAMPLE_RATE=0.1
+
+# Send all requests (not recommended for production)
+STACKWATCH_PERFORMANCE_SAMPLE_RATE=1.0
+```
+
+### Disable Performance Monitoring
+
+```env
+STACKWATCH_PERFORMANCE_ENABLED=false
+```
+
 ## Deployment Notifications
 
 Notify StackWatch when you deploy:
@@ -327,7 +377,10 @@ php artisan stackwatch:deploy --release=$GITHUB_SHA
 | `STACKWATCH_LOG_SAMPLE_RATE` | Log sampling rate (0-1) | `1.0` |
 | `STACKWATCH_RATE_LIMIT_PER_MINUTE` | Rate limit | `60` |
 | `STACKWATCH_PERFORMANCE_ENABLED` | Performance monitoring | `true` |
-| `STACKWATCH_PERFORMANCE_SAMPLE_RATE` | Performance sampling | `1.0` |
+| `STACKWATCH_PERFORMANCE_SAMPLE_RATE` | Performance sampling (when aggregation disabled) | `0.1` |
+| `STACKWATCH_PERFORMANCE_AGGREGATE` | Aggregate performance metrics | `true` |
+| `STACKWATCH_PERFORMANCE_BATCH_SIZE` | Requests before sending aggregate | `50` |
+| `STACKWATCH_SLOW_REQUEST_THRESHOLD` | Slow request threshold (ms) | `1000` |
 | `STACKWATCH_SPATIE_BACKUP_ENABLED` | Backup integration | `true` |
 | `STACKWATCH_SPATIE_HEALTH_ENABLED` | Health integration | `true` |
 | `STACKWATCH_SPATIE_ACTIVITYLOG_ENABLED` | Activity log integration | `true` |

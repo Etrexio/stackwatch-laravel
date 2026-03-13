@@ -4,12 +4,16 @@ namespace StackWatch\Laravel\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use StackWatch\Laravel\StackWatch;
 use Symfony\Component\HttpFoundation\Response;
 
 class StackWatchMiddleware
 {
     protected StackWatch $stackWatch;
+
+    private const PERF_BUFFER_KEY = 'stackwatch:perf_buffer';
+    private const PERF_LAST_FLUSH_KEY = 'stackwatch:perf_last_flush';
 
     public function __construct(StackWatch $stackWatch)
     {
@@ -30,14 +34,13 @@ class StackWatchMiddleware
 
         // Capture start time for performance monitoring
         $startTime = microtime(true);
-        $startMemory = memory_get_usage();
 
         // Process request
         $response = $next($request);
 
         // Capture performance data
         if (config('stackwatch.performance.enabled', true)) {
-            $this->capturePerformance($request, $response, $startTime, $startMemory);
+            $this->capturePerformance($request, $response, $startTime);
         }
 
         return $response;
@@ -77,40 +80,177 @@ class StackWatchMiddleware
         return $context;
     }
 
-    protected function capturePerformance(Request $request, Response $response, float $startTime, int $startMemory): void
+    protected function capturePerformance(Request $request, Response $response, float $startTime): void
     {
-        $sampleRate = config('stackwatch.performance.sample_rate', 1.0);
-
-        // Apply sample rate
-        if ($sampleRate < 1.0 && mt_rand() / mt_getrandmax() > $sampleRate) {
-            return;
-        }
-
         $duration = (microtime(true) - $startTime) * 1000;
-        $memoryPeak = memory_get_peak_usage(true) / 1024 / 1024; // MB
+        $slowThreshold = config('stackwatch.performance.slow_request_threshold', 1000);
+        $isSlowRequest = $duration >= $slowThreshold;
 
         // Build transaction name
         $routeName = $request->route()?->getName();
-        $name = $routeName 
+        $transactionName = $routeName 
             ? $request->method() . ' ' . $routeName
             : $request->method() . ' ' . $request->path();
 
-        $this->stackWatch->capturePerformance([
-            'name' => $name,
+        $perfData = [
+            'name' => $transactionName,
             'duration_ms' => round($duration, 2),
+            'memory_peak_mb' => round(memory_get_peak_usage(true) / 1024 / 1024, 2),
+            'status_code' => $response->getStatusCode(),
+            'is_error' => $response->getStatusCode() >= 400,
+        ];
+
+        // Slow requests are always sent immediately
+        if ($isSlowRequest) {
+            $this->sendPerformanceEvent($perfData, $request, true);
+            return;
+        }
+
+        // Check if aggregation is enabled
+        $aggregateEnabled = config('stackwatch.performance.aggregate.enabled', true);
+        
+        if (!$aggregateEnabled) {
+            // No aggregation - apply sampling and send
+            $sampleRate = config('stackwatch.performance.sample_rate', 0.1);
+            if (mt_rand() / mt_getrandmax() <= $sampleRate) {
+                $this->sendPerformanceEvent($perfData, $request, false);
+            }
+            return;
+        }
+
+        // Aggregation enabled - buffer the request
+        $this->bufferPerformanceData($perfData);
+        $this->checkAndFlushBuffer();
+    }
+
+    /**
+     * Send a single performance event.
+     */
+    protected function sendPerformanceEvent(array $perfData, Request $request, bool $isSlow): void
+    {
+        $this->stackWatch->capturePerformance([
+            'name' => $perfData['name'],
+            'duration_ms' => $perfData['duration_ms'],
             'operation' => 'http',
-            'status' => $response->getStatusCode() < 400 ? 'ok' : 'error',
-            'memory_peak_mb' => round($memoryPeak, 2),
+            'status' => $perfData['is_error'] ? 'error' : 'ok',
+            'memory_peak_mb' => $perfData['memory_peak_mb'],
             'context' => [
                 'url' => $request->fullUrl(),
                 'method' => $request->method(),
-                'route' => $routeName,
-                'status_code' => $response->getStatusCode(),
+                'route' => $request->route()?->getName(),
+                'status_code' => $perfData['status_code'],
+                'slow_request' => $isSlow,
             ],
             'tags' => [
                 'http.method' => $request->method(),
-                'http.status_code' => (string) $response->getStatusCode(),
+                'http.status_code' => (string) $perfData['status_code'],
+                'slow' => $isSlow ? 'true' : 'false',
             ],
         ]);
+    }
+
+    /**
+     * Buffer performance data for aggregation.
+     */
+    protected function bufferPerformanceData(array $perfData): void
+    {
+        $buffer = Cache::get(self::PERF_BUFFER_KEY, []);
+        $transactionName = $perfData['name'];
+
+        if (!isset($buffer[$transactionName])) {
+            $buffer[$transactionName] = [
+                'count' => 0,
+                'total_duration' => 0,
+                'min_duration' => PHP_FLOAT_MAX,
+                'max_duration' => 0,
+                'total_memory' => 0,
+                'error_count' => 0,
+                'status_codes' => [],
+            ];
+        }
+
+        $buffer[$transactionName]['count']++;
+        $buffer[$transactionName]['total_duration'] += $perfData['duration_ms'];
+        $buffer[$transactionName]['min_duration'] = min($buffer[$transactionName]['min_duration'], $perfData['duration_ms']);
+        $buffer[$transactionName]['max_duration'] = max($buffer[$transactionName]['max_duration'], $perfData['duration_ms']);
+        $buffer[$transactionName]['total_memory'] += $perfData['memory_peak_mb'];
+        
+        if ($perfData['is_error']) {
+            $buffer[$transactionName]['error_count']++;
+        }
+
+        $statusCode = (string) $perfData['status_code'];
+        $buffer[$transactionName]['status_codes'][$statusCode] = 
+            ($buffer[$transactionName]['status_codes'][$statusCode] ?? 0) + 1;
+
+        Cache::put(self::PERF_BUFFER_KEY, $buffer, now()->addMinutes(5));
+    }
+
+    /**
+     * Check if buffer should be flushed and flush if needed.
+     */
+    protected function checkAndFlushBuffer(): void
+    {
+        $buffer = Cache::get(self::PERF_BUFFER_KEY, []);
+        $totalCount = array_sum(array_column($buffer, 'count'));
+        
+        $batchSize = config('stackwatch.performance.aggregate.batch_size', 50);
+        $flushInterval = config('stackwatch.performance.aggregate.flush_interval', 60);
+        $lastFlush = Cache::get(self::PERF_LAST_FLUSH_KEY, 0);
+        $timeSinceLastFlush = time() - $lastFlush;
+
+        // Flush if batch size reached or interval passed
+        if ($totalCount >= $batchSize || ($totalCount > 0 && $timeSinceLastFlush >= $flushInterval)) {
+            $this->flushPerformanceBuffer();
+        }
+    }
+
+    /**
+     * Flush the performance buffer and send aggregated metrics.
+     */
+    protected function flushPerformanceBuffer(): void
+    {
+        $buffer = Cache::get(self::PERF_BUFFER_KEY, []);
+        
+        if (empty($buffer)) {
+            return;
+        }
+
+        // Clear buffer first
+        Cache::forget(self::PERF_BUFFER_KEY);
+        Cache::put(self::PERF_LAST_FLUSH_KEY, time(), now()->addMinutes(5));
+
+        // Send aggregated metrics for each transaction
+        foreach ($buffer as $transactionName => $data) {
+            if ($data['count'] === 0) {
+                continue;
+            }
+
+            $avgDuration = $data['total_duration'] / $data['count'];
+            $avgMemory = $data['total_memory'] / $data['count'];
+            $errorRate = ($data['error_count'] / $data['count']) * 100;
+
+            $this->stackWatch->capturePerformance([
+                'name' => $transactionName,
+                'duration_ms' => round($avgDuration, 2),
+                'operation' => 'http.aggregated',
+                'status' => $data['error_count'] > 0 ? 'degraded' : 'ok',
+                'memory_peak_mb' => round($avgMemory, 2),
+                'context' => [
+                    'aggregated' => true,
+                    'request_count' => $data['count'],
+                    'min_duration_ms' => round($data['min_duration'], 2),
+                    'max_duration_ms' => round($data['max_duration'], 2),
+                    'avg_duration_ms' => round($avgDuration, 2),
+                    'error_count' => $data['error_count'],
+                    'error_rate_percent' => round($errorRate, 2),
+                    'status_codes' => $data['status_codes'],
+                ],
+                'tags' => [
+                    'aggregated' => 'true',
+                    'request_count' => (string) $data['count'],
+                ],
+            ]);
+        }
     }
 }
