@@ -1,0 +1,24 @@
+# Lock files
+composer.lock
+
+# Vendor
+/vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test & Coverage
+.phpunit.cache
+.phpunit.result.cache
+coverage/
+.coverage
+
+# Build
+/build/

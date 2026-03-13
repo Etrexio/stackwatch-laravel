@@ -1,0 +1,64 @@
+{
+    "name": "stackwatch/laravel",
+    "description": "StackWatch Laravel SDK - AI-powered application monitoring for Laravel",
+    "keywords": ["laravel", "monitoring", "error-tracking", "apm", "logging", "stackwatch", "backup", "health-check"],
+    "license": "MIT",
+    "homepage": "https://stackwatch.dev",
+    "support": {
+        "issues": "https://github.com/stackwatch/laravel-sdk/issues",
+        "docs": "https://docs.stackwatch.dev/laravel",
+        "source": "https://github.com/stackwatch/laravel-sdk"
+    },
+    "authors": [
+        {
+            "name": "StackWatch",
+            "email": "dev@stackwatch.dev",
+            "homepage": "https://stackwatch.dev"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "illuminate/http": "^10.0|^11.0|^12.0",
+        "illuminate/cache": "^10.0|^11.0|^12.0",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^8.0|^9.0",
+        "phpunit/phpunit": "^10.0|^11.0"
+    },
+    "suggest": {
+        "spatie/laravel-backup": "Required for backup event monitoring (^8.0)",
+        "spatie/laravel-health": "Required for health check monitoring (^1.0)",
+        "spatie/laravel-activitylog": "Required for activity log monitoring (^4.0)"
+    },
+    "autoload": {
+        "psr-4": {
+            "StackWatch\\Laravel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "StackWatch\\Laravel\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "StackWatch\\Laravel\\StackWatchServiceProvider"
+            ],
+            "aliases": {
+                "StackWatch": "StackWatch\\Laravel\\Facades\\StackWatch"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage"
+    }
+}
