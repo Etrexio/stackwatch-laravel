@@ -135,8 +135,14 @@ class StackWatchMiddleware
      */
     protected function sendPerformanceEvent(array $perfData, Request $request, bool $isSlow): void
     {
+        $message = $perfData['name'] . ' - ' . $perfData['duration_ms'] . 'ms';
+        if ($isSlow) {
+            $message .= ' (slow)';
+        }
+
         $this->stackWatch->capturePerformance([
             'name' => $perfData['name'],
+            'message' => $message,
             'duration_ms' => $perfData['duration_ms'],
             'operation' => 'http',
             'status' => $perfData['is_error'] ? 'error' : 'ok',
@@ -238,8 +244,14 @@ class StackWatchMiddleware
             $avgMemory = $data['total_memory'] / $data['count'];
             $errorRate = ($data['error_count'] / $data['count']) * 100;
 
+            $message = $transactionName . ' - avg ' . round($avgDuration, 2) . 'ms (' . $data['count'] . ' requests)';
+            if ($data['error_count'] > 0) {
+                $message .= ' [' . $data['error_count'] . ' errors]';
+            }
+
             $this->stackWatch->capturePerformance([
                 'name' => $transactionName,
+                'message' => $message,
                 'duration_ms' => round($avgDuration, 2),
                 'operation' => 'http.aggregated',
                 'status' => $data['error_count'] > 0 ? 'degraded' : 'ok',
@@ -260,6 +272,7 @@ class StackWatchMiddleware
                     'request_count' => (string) $data['count'],
                 ],
             ]);
+        }
         }
     }
 }
