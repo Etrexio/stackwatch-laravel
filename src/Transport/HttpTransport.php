@@ -27,7 +27,7 @@ class HttpTransport
     public function __construct()
     {
         $this->apiKey = config('stackwatch.api_key');
-        $this->endpoint = rtrim(config('stackwatch.endpoint', 'https://api.stackwatch.dev/v1'), '/');
+        $this->endpoint = rtrim(config('stackwatch.endpoint', 'https://api.stackwatch.dev/v1'), '/') . '/';
         $this->timeout = config('stackwatch.http.timeout', 5);
         $this->retryAttempts = config('stackwatch.http.retry_attempts', 3);
         $this->retryDelay = config('stackwatch.http.retry_delay', 100);
@@ -234,9 +234,9 @@ class HttpTransport
         $type = $event['type'] ?? 'event';
 
         return match ($type) {
-            'exception', 'error' => '/events/exception',
-            'performance' => '/events/performance',
-            default => '/events',
+            'exception', 'error' => 'events/exception',
+            'performance' => 'events/performance',
+            default => 'events',
         };
     }
 
@@ -270,7 +270,7 @@ class HttpTransport
 
         foreach ($chunks as $chunk) {
             try {
-                $response = $this->client->post('/events/batch', [
+                $response = $this->client->post('events/batch', [
                     RequestOptions::JSON => ['events' => $chunk],
                 ]);
 
@@ -324,7 +324,7 @@ class HttpTransport
     public function ping(): bool
     {
         try {
-            $response = $this->client->get('/health');
+            $response = $this->client->get('health');
 
             return $response->getStatusCode() === 200;
         } catch (GuzzleException $e) {
