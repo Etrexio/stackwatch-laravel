@@ -316,22 +316,9 @@ class StackWatch
     /**
      * Format the exception stack trace.
      */
-    protected function formatStackTrace(Throwable $exception): array
+    protected function formatStackTrace(Throwable $exception): string
     {
-        $frames = [];
-
-        foreach ($exception->getTrace() as $frame) {
-            $frames[] = [
-                'file' => $frame['file'] ?? null,
-                'line' => $frame['line'] ?? null,
-                'function' => $frame['function'] ?? null,
-                'class' => $frame['class'] ?? null,
-                'type' => $frame['type'] ?? null,
-                'args' => $this->sanitizeArguments($frame['args'] ?? []),
-            ];
-        }
-
-        return $frames;
+        return $exception->getTraceAsString();
     }
 
     /**

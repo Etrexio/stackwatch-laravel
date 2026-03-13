@@ -35,11 +35,11 @@ class FlushEventBufferJob implements ShouldQueue
             return;
         }
 
-        Log::debug("StackWatch: Flushing {$bufferSize} buffered events");
+        Log::debug("StackWatch: Flushing {$bufferSize} buffered events", ['stackwatch_internal' => true]);
 
         $results = $transport->flushBuffer();
 
-        Log::debug('StackWatch: Flushed ' . count($results) . ' events successfully');
+        Log::debug('StackWatch: Flushed ' . count($results) . ' events successfully', ['stackwatch_internal' => true]);
     }
 
     /**
@@ -48,6 +48,7 @@ class FlushEventBufferJob implements ShouldQueue
     public function failed(\Throwable $exception): void
     {
         Log::warning('StackWatch: Failed to flush event buffer', [
+            'stackwatch_internal' => true,
             'error' => $exception->getMessage(),
         ]);
     }

@@ -96,7 +96,7 @@ class HttpTransport
     protected function bufferEvent(array $event): ?string
     {
         if (!$this->bufferOnRateLimit) {
-            Log::debug('StackWatch: Event dropped due to rate limiting');
+            Log::debug('StackWatch: Event dropped due to rate limiting', ['stackwatch_internal' => true]);
             return null;
         }
 
@@ -110,7 +110,7 @@ class HttpTransport
             return 'buffered';
         }
 
-        Log::warning('StackWatch: Event buffer full, event dropped');
+        Log::warning('StackWatch: Event buffer full, event dropped', ['stackwatch_internal' => true]);
         return null;
     }
 
@@ -196,7 +196,7 @@ class HttpTransport
             } catch (GuzzleException $e) {
                 // Check if this is a rate limit response (429)
                 if ($e->getCode() === 429) {
-                    Log::debug('StackWatch: Rate limited by server, buffering event');
+                    Log::debug('StackWatch: Rate limited by server, buffering event', ['stackwatch_internal' => true]);
                     return $this->bufferEvent($event);
                 }
 
@@ -204,6 +204,7 @@ class HttpTransport
 
                 if ($attempt >= $this->retryAttempts) {
                     Log::error('StackWatch: Failed to send event after ' . $this->retryAttempts . ' attempts', [
+                        'stackwatch_internal' => true,
                         'endpoint' => $endpoint ?? 'unknown',
                         'error' => $e->getMessage(),
                         'code' => $e->getCode(),
@@ -218,7 +219,7 @@ class HttpTransport
                     return null;
                 }
 
-                Log::debug('StackWatch: Retry attempt ' . $attempt . ' after error: ' . $e->getMessage());
+                Log::debug('StackWatch: Retry attempt ' . $attempt . ' after error: ' . $e->getMessage(), ['stackwatch_internal' => true]);
                 usleep($this->retryDelay * 1000);
             }
         }
@@ -280,7 +281,7 @@ class HttpTransport
                 // Increment rate limit for batch
                 $this->incrementRateLimit();
             } catch (GuzzleException $e) {
-                Log::warning('StackWatch: Failed to send batch', ['error' => $e->getMessage()]);
+                Log::warning('StackWatch: Failed to send batch', ['stackwatch_internal' => true, 'error' => $e->getMessage()]);
                 
                 // Re-buffer failed events
                 foreach ($chunk as $event) {
