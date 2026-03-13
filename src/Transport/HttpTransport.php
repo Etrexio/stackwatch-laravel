@@ -47,7 +47,8 @@ class HttpTransport
     }
 
     /**
-     * Send an event to StackWatch with rate limiting support.
+     * Send an event to StackWatch.
+     * Always sends synchronously. Buffers only when rate limited.
      */
     public function send(array $event): ?string
     {
@@ -55,18 +56,20 @@ class HttpTransport
             return null;
         }
 
-        // Check rate limiting
+        // Check if we're rate limited
         if ($this->isRateLimited()) {
-            return $this->handleRateLimited($event);
+            return $this->bufferEvent($event);
         }
 
-        $queueConnection = config('stackwatch.queue.connection', 'sync');
+        // Send the event directly
+        $result = $this->sendNow($event);
 
-        if ($queueConnection === 'sync') {
-            return $this->sendNow($event);
+        // If successful, try to flush any buffered events
+        if ($result !== null && $result !== 'buffered') {
+            $this->tryFlushBuffer();
         }
 
-        return $this->sendAsync($event);
+        return $result;
     }
 
     /**
@@ -79,25 +82,30 @@ class HttpTransport
     }
 
     /**
-     * Handle rate-limited event by buffering.
+     * Get remaining rate limit capacity.
      */
-    protected function handleRateLimited(array $event): ?string
+    protected function getRemainingCapacity(): int
+    {
+        $currentCount = Cache::get(self::RATE_LIMIT_CACHE_KEY, 0);
+        return max(0, $this->rateLimitPerMinute - $currentCount);
+    }
+
+    /**
+     * Buffer an event for later sending.
+     */
+    protected function bufferEvent(array $event): ?string
     {
         if (!$this->bufferOnRateLimit) {
             Log::debug('StackWatch: Event dropped due to rate limiting');
             return null;
         }
 
-        // Buffer event for later sending
         $buffer = Cache::get(self::BUFFER_CACHE_KEY, []);
         $maxBufferSize = config('stackwatch.rate_limit.max_buffer_size', 1000);
         
         if (count($buffer) < $maxBufferSize) {
             $buffer[] = $event;
             Cache::put(self::BUFFER_CACHE_KEY, $buffer, now()->addHours(1));
-            
-            // Schedule buffer flush
-            $this->scheduleBufferFlush();
             
             return 'buffered';
         }
@@ -107,19 +115,42 @@ class HttpTransport
     }
 
     /**
-     * Schedule a job to flush the buffer when rate limit resets.
+     * Try to flush buffered events if we have capacity.
+     * Called after each successful send.
      */
-    protected function scheduleBufferFlush(): void
+    protected function tryFlushBuffer(): void
     {
-        $flushJobKey = 'stackwatch:buffer_flush_scheduled';
+        $buffer = Cache::get(self::BUFFER_CACHE_KEY, []);
         
-        if (!Cache::has($flushJobKey)) {
-            Cache::put($flushJobKey, true, 60);
+        if (empty($buffer)) {
+            return;
+        }
+
+        $remaining = $this->getRemainingCapacity();
+        
+        if ($remaining <= 0) {
+            return;
+        }
+
+        // Take only what we can send within rate limit
+        $toSend = array_slice($buffer, 0, $remaining);
+        $remaining = array_slice($buffer, count($toSend));
+
+        // Update buffer first (remove events we're about to send)
+        if (empty($remaining)) {
+            Cache::forget(self::BUFFER_CACHE_KEY);
+        } else {
+            Cache::put(self::BUFFER_CACHE_KEY, $remaining, now()->addHours(1));
+        }
+
+        // Send buffered events one by one
+        foreach ($toSend as $event) {
+            $result = $this->sendNow($event);
             
-            // Dispatch delayed job to flush buffer
-            dispatch(new \StackWatch\Laravel\Jobs\FlushEventBufferJob())
-                ->delay(now()->addMinute())
-                ->onQueue(config('stackwatch.queue.queue_name', 'stackwatch'));
+            // If we hit rate limit, re-buffer remaining events
+            if ($result === null || $result === 'buffered') {
+                break;
+            }
         }
     }
 
@@ -161,11 +192,11 @@ class HttpTransport
 
                 $body = json_decode($response->getBody()->getContents(), true);
 
-                return $body['event_id'] ?? null;
+                return $body['event_id'] ?? 'sent';
             } catch (GuzzleException $e) {
                 // Check if this is a rate limit response (429)
                 if ($e->getCode() === 429) {
-                    return $this->handleRateLimited($event);
+                    return $this->bufferEvent($event);
                 }
 
                 $attempt++;
@@ -177,7 +208,7 @@ class HttpTransport
 
                     // Buffer failed events if configured
                     if ($this->bufferOnRateLimit) {
-                        return $this->handleRateLimited($event);
+                        return $this->bufferEvent($event);
                     }
 
                     return null;
@@ -248,7 +279,7 @@ class HttpTransport
                 
                 // Re-buffer failed events
                 foreach ($chunk as $event) {
-                    $this->handleRateLimited($event);
+                    $this->bufferEvent($event);
                 }
             }
         }
@@ -257,7 +288,7 @@ class HttpTransport
     }
 
     /**
-     * Flush the event buffer.
+     * Flush the event buffer (can be called manually or via artisan command).
      */
     public function flushBuffer(): array
     {
@@ -269,7 +300,6 @@ class HttpTransport
 
         // Clear the buffer first
         Cache::forget(self::BUFFER_CACHE_KEY);
-        Cache::forget('stackwatch:buffer_flush_scheduled');
 
         // Send buffered events
         return $this->sendBatch($buffer);
@@ -281,21 +311,6 @@ class HttpTransport
     public function getBufferSize(): int
     {
         return count(Cache::get(self::BUFFER_CACHE_KEY, []));
-    }
-
-    /**
-     * Queue event for async sending.
-     */
-    protected function sendAsync(array $event): ?string
-    {
-        $queueName = config('stackwatch.queue.queue_name', 'stackwatch');
-        $connection = config('stackwatch.queue.connection', 'redis');
-
-        dispatch(new \StackWatch\Laravel\Jobs\SendEventJob($event))
-            ->onConnection($connection)
-            ->onQueue($queueName);
-
-        return 'queued';
     }
 
     /**

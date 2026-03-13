@@ -229,20 +229,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Queue Configuration
-    |--------------------------------------------------------------------------
-    |
-    | Configure how events are sent. 'sync' sends immediately, 'async'
-    | queues events for background processing.
-    |
-    */
-    'queue' => [
-        'connection' => env('STACKWATCH_QUEUE_CONNECTION', 'sync'),
-        'queue_name' => env('STACKWATCH_QUEUE_NAME', 'stackwatch'),
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
     | HTTP Client Options
     |--------------------------------------------------------------------------
     |
