@@ -37,7 +37,6 @@ php artisan stackwatch:install
 The install command will guide you through:
 - Publishing the configuration
 - Setting up your API key
-- Configuring queue connection
 - Testing the connection
 
 ### Manual Install
@@ -287,7 +286,7 @@ StackWatch includes smart rate limiting to prevent overwhelming the API:
 STACKWATCH_RATE_LIMIT_PER_MINUTE=60
 ```
 
-When rate limited, events are automatically buffered and sent when the limit resets. No logs are lost!
+When rate limited, events are automatically buffered and sent with the next successful request. No events are lost!
 
 To disable buffering (drop events when rate limited):
 
@@ -312,21 +311,6 @@ Or in your CI/CD pipeline:
 php artisan stackwatch:deploy --release=$GITHUB_SHA
 ```
 
-## Queue Configuration
-
-For production, use async queuing:
-
-```env
-STACKWATCH_QUEUE_CONNECTION=redis
-STACKWATCH_QUEUE_NAME=stackwatch
-```
-
-Then run a dedicated worker:
-
-```bash
-php artisan queue:work redis --queue=stackwatch
-```
-
 ## Environment Variables
 
 | Variable | Description | Default |
@@ -344,8 +328,6 @@ php artisan queue:work redis --queue=stackwatch
 | `STACKWATCH_RATE_LIMIT_PER_MINUTE` | Rate limit | `60` |
 | `STACKWATCH_PERFORMANCE_ENABLED` | Performance monitoring | `true` |
 | `STACKWATCH_PERFORMANCE_SAMPLE_RATE` | Performance sampling | `1.0` |
-| `STACKWATCH_QUEUE_CONNECTION` | Queue connection | `sync` |
-| `STACKWATCH_QUEUE_NAME` | Queue name | `stackwatch` |
 | `STACKWATCH_SPATIE_BACKUP_ENABLED` | Backup integration | `true` |
 | `STACKWATCH_SPATIE_HEALTH_ENABLED` | Health integration | `true` |
 | `STACKWATCH_SPATIE_ACTIVITYLOG_ENABLED` | Activity log integration | `true` |
@@ -359,12 +341,7 @@ php artisan queue:work redis --queue=stackwatch
    php artisan stackwatch:test
    ```
 
-2. Verify queue is running (if using async):
-   ```bash
-   php artisan queue:work --queue=stackwatch
-   ```
-
-3. Check for rate limiting:
+2. Check for rate limiting:
    ```bash
    # View buffered events count
    php artisan tinker
