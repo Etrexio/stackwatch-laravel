@@ -139,6 +139,11 @@ return [
     'performance' => [
         'enabled' => env('STACKWATCH_PERFORMANCE_ENABLED', true),
         
+        // How to group/name transactions for aggregation
+        // 'route' = Use route name (e.g., "GET cases.show") - recommended, groups same endpoint
+        // 'path'  = Use full path (e.g., "GET /cases/my-case") - each unique URL separate
+        'group_by' => env('STACKWATCH_PERFORMANCE_GROUP_BY', 'path'),
+        
         // Sampling rate for normal requests (0.0 to 1.0)
         // Default 0.1 = only 10% of requests are sampled
         'sample_rate' => env('STACKWATCH_PERFORMANCE_SAMPLE_RATE', 0.1),

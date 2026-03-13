@@ -83,14 +83,20 @@ class StackWatchMiddleware
     protected function capturePerformance(Request $request, Response $response, float $startTime): void
     {
         $duration = (microtime(true) - $startTime) * 1000;
-        $slowThreshold = config('stackwatch.performance.slow_request_threshold', 1000);
+        $slowThreshold = config('stackwatch.performance.slow_request_threshold', 3000);
         $isSlowRequest = $duration >= $slowThreshold;
 
-        // Build transaction name
+        // Build transaction name based on config
+        $groupBy = config('stackwatch.performance.group_by', 'path');
         $routeName = $request->route()?->getName();
-        $transactionName = $routeName 
-            ? $request->method() . ' ' . $routeName
-            : $request->method() . ' ' . $request->path();
+        
+        if ($groupBy === 'route' && $routeName) {
+            // Group by route name: "GET cases.show"
+            $transactionName = $request->method() . ' ' . $routeName;
+        } else {
+            // Group by path: "GET /cases/my-case-slug"
+            $transactionName = $request->method() . ' /' . ltrim($request->path(), '/');
+        }
 
         $perfData = [
             'name' => $transactionName,
@@ -98,6 +104,7 @@ class StackWatchMiddleware
             'memory_peak_mb' => round(memory_get_peak_usage(true) / 1024 / 1024, 2),
             'status_code' => $response->getStatusCode(),
             'is_error' => $response->getStatusCode() >= 400,
+            'route' => $routeName,
         ];
 
         // Slow requests are always sent immediately
@@ -166,6 +173,7 @@ class StackWatchMiddleware
                 'total_memory' => 0,
                 'error_count' => 0,
                 'status_codes' => [],
+                'route' => $perfData['route'] ?? null,
             ];
         }
 
@@ -238,6 +246,7 @@ class StackWatchMiddleware
                 'memory_peak_mb' => round($avgMemory, 2),
                 'context' => [
                     'aggregated' => true,
+                    'route' => $data['route'] ?? null,
                     'request_count' => $data['count'],
                     'min_duration_ms' => round($data['min_duration'], 2),
                     'max_duration_ms' => round($data['max_duration'], 2),

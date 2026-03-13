@@ -301,11 +301,25 @@ To disable buffering (drop events when rate limited):
 
 Performance monitoring is enabled by default with smart defaults to minimize overhead:
 
+### Transaction Grouping
+
+Configure how requests are grouped for aggregation:
+
+```env
+# Group by full path (default) - each unique URL tracked separately
+# e.g., "GET /blog/post-1", "GET /blog/post-2"
+STACKWATCH_PERFORMANCE_GROUP_BY=path
+
+# Group by route name - same endpoint grouped together
+# e.g., "GET blog.show" (includes all blog posts)
+STACKWATCH_PERFORMANCE_GROUP_BY=route
+```
+
 ### Aggregation (Default)
 
 Instead of sending every request, StackWatch aggregates metrics and sends summaries:
 
-- Collects 50 requests (configurable)
+- Collects 50 requests per transaction (configurable)
 - Sends aggregated stats: avg/min/max duration, error rate, request count
 - Flushes every 60 seconds even if batch not full
 
@@ -377,6 +391,7 @@ php artisan stackwatch:deploy --release=$GITHUB_SHA
 | `STACKWATCH_LOG_SAMPLE_RATE` | Log sampling rate (0-1) | `1.0` |
 | `STACKWATCH_RATE_LIMIT_PER_MINUTE` | Rate limit | `60` |
 | `STACKWATCH_PERFORMANCE_ENABLED` | Performance monitoring | `true` |
+| `STACKWATCH_PERFORMANCE_GROUP_BY` | Group by 'path' or 'route' | `path` |
 | `STACKWATCH_PERFORMANCE_SAMPLE_RATE` | Performance sampling (when aggregation disabled) | `0.1` |
 | `STACKWATCH_PERFORMANCE_AGGREGATE` | Aggregate performance metrics | `true` |
 | `STACKWATCH_PERFORMANCE_BATCH_SIZE` | Requests before sending aggregate | `50` |
