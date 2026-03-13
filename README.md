@@ -319,16 +319,24 @@ STACKWATCH_PERFORMANCE_GROUP_BY=route
 
 Instead of sending every request, StackWatch aggregates metrics and sends summaries:
 
-- Collects 50 requests per transaction (configurable)
+- Collects requests until batch size reached (default: 50)
 - Sends aggregated stats: avg/min/max duration, error rate, request count
-- Flushes every 60 seconds even if batch not full
+- Time-based flush: after interval passes AND minimum count reached
+- Prevents sending useless aggregates with only 1-2 requests
 
 ```env
 # Disable aggregation (send individual requests with sampling)
 STACKWATCH_PERFORMANCE_AGGREGATE=false
 
-# Change batch size
-STACKWATCH_PERFORMANCE_BATCH_SIZE=100
+# Number of requests to trigger immediate aggregate send
+STACKWATCH_PERFORMANCE_BATCH_SIZE=50
+
+# Seconds to wait before time-based flush
+STACKWATCH_PERFORMANCE_FLUSH_INTERVAL=60
+
+# Minimum requests required for time-based flush
+# If only 3 requests after 60s, wait until 5 or batch_size reached
+STACKWATCH_PERFORMANCE_MIN_FLUSH_COUNT=5
 ```
 
 ### Slow Requests
@@ -395,6 +403,8 @@ php artisan stackwatch:deploy --release=$GITHUB_SHA
 | `STACKWATCH_PERFORMANCE_SAMPLE_RATE` | Performance sampling (when aggregation disabled) | `0.1` |
 | `STACKWATCH_PERFORMANCE_AGGREGATE` | Aggregate performance metrics | `true` |
 | `STACKWATCH_PERFORMANCE_BATCH_SIZE` | Requests before sending aggregate | `50` |
+| `STACKWATCH_PERFORMANCE_FLUSH_INTERVAL` | Seconds before time-based flush | `60` |
+| `STACKWATCH_PERFORMANCE_MIN_FLUSH_COUNT` | Min requests for time-based flush | `5` |
 | `STACKWATCH_SLOW_REQUEST_THRESHOLD` | Slow request threshold (ms) | `3000` |
 | `STACKWATCH_SPATIE_BACKUP_ENABLED` | Backup integration | `true` |
 | `STACKWATCH_SPATIE_HEALTH_ENABLED` | Health integration | `true` |

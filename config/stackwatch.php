@@ -159,8 +159,16 @@ return [
         // Instead of sending each request, aggregate N requests and send summary
         'aggregate' => [
             'enabled' => env('STACKWATCH_PERFORMANCE_AGGREGATE', true),
+            
+            // Number of requests to collect before sending aggregate
             'batch_size' => env('STACKWATCH_PERFORMANCE_BATCH_SIZE', 50),
-            'flush_interval' => 60, // seconds - flush even if batch not full
+            
+            // Seconds - flush even if batch not full (requires min_flush_count)
+            'flush_interval' => env('STACKWATCH_PERFORMANCE_FLUSH_INTERVAL', 60),
+            
+            // Minimum requests required for time-based flush
+            // Prevents sending aggregates with only 1-2 requests
+            'min_flush_count' => env('STACKWATCH_PERFORMANCE_MIN_FLUSH_COUNT', 5),
         ],
     ],
 
