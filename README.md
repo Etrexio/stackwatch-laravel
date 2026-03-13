@@ -322,11 +322,11 @@ STACKWATCH_PERFORMANCE_BATCH_SIZE=100
 Requests slower than the threshold are **always** sent immediately (not aggregated):
 
 ```env
-# Requests over 1000ms are always reported (default)
-STACKWATCH_SLOW_REQUEST_THRESHOLD=1000
+# Requests over 3000ms (3s) are always reported (default)
+STACKWATCH_SLOW_REQUEST_THRESHOLD=3000
 
 # Lower threshold for more sensitive monitoring
-STACKWATCH_SLOW_REQUEST_THRESHOLD=500
+STACKWATCH_SLOW_REQUEST_THRESHOLD=1000
 ```
 
 ### Sampling (When Aggregation Disabled)
@@ -380,7 +380,7 @@ php artisan stackwatch:deploy --release=$GITHUB_SHA
 | `STACKWATCH_PERFORMANCE_SAMPLE_RATE` | Performance sampling (when aggregation disabled) | `0.1` |
 | `STACKWATCH_PERFORMANCE_AGGREGATE` | Aggregate performance metrics | `true` |
 | `STACKWATCH_PERFORMANCE_BATCH_SIZE` | Requests before sending aggregate | `50` |
-| `STACKWATCH_SLOW_REQUEST_THRESHOLD` | Slow request threshold (ms) | `1000` |
+| `STACKWATCH_SLOW_REQUEST_THRESHOLD` | Slow request threshold (ms) | `3000` |
 | `STACKWATCH_SPATIE_BACKUP_ENABLED` | Backup integration | `true` |
 | `STACKWATCH_SPATIE_HEALTH_ENABLED` | Health integration | `true` |
 | `STACKWATCH_SPATIE_ACTIVITYLOG_ENABLED` | Activity log integration | `true` |

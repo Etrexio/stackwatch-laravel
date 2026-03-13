@@ -145,7 +145,7 @@ return [
         
         // Slow request threshold in milliseconds
         // Requests slower than this are ALWAYS sent (ignores sample_rate)
-        'slow_request_threshold' => env('STACKWATCH_SLOW_REQUEST_THRESHOLD', 1000),
+        'slow_request_threshold' => env('STACKWATCH_SLOW_REQUEST_THRESHOLD', 3000),
         
         // Slow query threshold for breadcrumbs
         'slow_query_threshold' => 100, // milliseconds
