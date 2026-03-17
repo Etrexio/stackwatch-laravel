@@ -277,6 +277,40 @@ Filter by log name or event type in `config/stackwatch.php`:
 ],
 ```
 
+## Ignored Exceptions
+
+By default, StackWatch ignores common exceptions that are not actual errors:
+
+- `NotFoundHttpException` (404 errors)
+- `ModelNotFoundException` (404 for missing models)
+- `AuthenticationException` (401 errors)
+- `AuthorizationException` (403 errors)
+- `ValidationException` (422 validation errors)
+- `TokenMismatchException` (CSRF errors)
+
+To customize ignored exceptions, modify `config/stackwatch.php`:
+
+```php
+'ignored_exceptions' => [
+    // Keep defaults
+    Symfony\Component\HttpKernel\Exception\NotFoundHttpException::class,
+    Illuminate\Database\Eloquent\ModelNotFoundException::class,
+    Illuminate\Auth\AuthenticationException::class,
+    Illuminate\Auth\Access\AuthorizationException::class,
+    Illuminate\Validation\ValidationException::class,
+    Illuminate\Session\TokenMismatchException::class,
+    
+    // Add your own
+    App\Exceptions\SomeCustomException::class,
+],
+```
+
+To report all exceptions (including 404s):
+
+```php
+'ignored_exceptions' => [],
+```
+
 ## Rate Limiting
 
 StackWatch includes smart rate limiting to prevent overwhelming the API:
