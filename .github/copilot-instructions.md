@@ -38,9 +38,37 @@ git push origin --tags
 
 ### Changelog
 
-When making changes, update `CHANGELOG.md` with:
-- Version number and date
-- List of changes under categories: Added, Changed, Fixed, Removed, Security
+**IMPORTANT: ALWAYS update `CHANGELOG.md` when making any code changes.**
+
+Before committing:
+1. Check the current version in `CHANGELOG.md`
+2. Add your changes under the appropriate category
+3. If releasing a new version, add a new version header with today's date
+
+Categories to use:
+- **Added**: New features or files
+- **Changed**: Changes to existing functionality
+- **Fixed**: Bug fixes
+- **Removed**: Removed features or files
+- **Security**: Security-related changes
+- **Deprecated**: Features to be removed in future versions
+
+Format example:
+```markdown
+## [1.0.2] - 2026-03-19
+
+### Added
+- New feature description
+
+### Fixed
+- Bug fix description
+```
+
+**Workflow:**
+1. Make your code changes
+2. Update CHANGELOG.md with your changes under `[Unreleased]` or new version
+3. Commit both code and CHANGELOG.md together
+4. If releasing: create git tag matching the version
 
 ## Code Standards
 
