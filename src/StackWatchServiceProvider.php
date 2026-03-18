@@ -17,6 +17,11 @@ use StackWatch\Laravel\Transport\HttpTransport;
 
 class StackWatchServiceProvider extends ServiceProvider
 {
+    /**
+     * Static flag to prevent recursive log capture.
+     */
+    private static bool $isCapturingLog = false;
+
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/stackwatch.php', 'stackwatch');
@@ -137,6 +142,11 @@ class StackWatchServiceProvider extends ServiceProvider
         Event::listen(MessageLogged::class, function (MessageLogged $event) use (
             $captureAsEvents, $captureBreadcrumbs, $levels, $minLevelIndex, $sampleRate
         ) {
+            // Prevent infinite loop - re-entrancy guard (most reliable)
+            if (self::$isCapturingLog) {
+                return;
+            }
+
             // Check minimum level
             $eventLevelIndex = array_search($event->level, $levels);
             if ($eventLevelIndex === false || $eventLevelIndex < $minLevelIndex) {
@@ -144,31 +154,39 @@ class StackWatchServiceProvider extends ServiceProvider
             }
 
             // Prevent infinite loop - don't capture our own logs
-            if (isset($event->context['stackwatch_internal'])) {
+            // Use !empty() for safer null handling (Laravel 8 compatibility)
+            $context = $event->context ?? [];
+            if (!empty($context['stackwatch_internal'])) {
                 return;
             }
 
-            $stackWatch = app(StackWatch::class);
+            self::$isCapturingLog = true;
 
-            // Add as breadcrumb
-            if ($captureBreadcrumbs) {
-                $stackWatch->addBreadcrumb(
-                    'log',
-                    $event->message,
-                    $event->context ?? [],
-                    $event->level
-                );
-            }
+            try {
+                $stackWatch = app(StackWatch::class);
 
-            // Send as event
-            if ($captureAsEvents) {
-                // Apply sampling for non-error logs
-                $isError = in_array($event->level, ['error', 'critical', 'alert', 'emergency']);
-                if (!$isError && $sampleRate < 1.0 && mt_rand() / mt_getrandmax() > $sampleRate) {
-                    return;
+                // Add as breadcrumb
+                if ($captureBreadcrumbs) {
+                    $stackWatch->addBreadcrumb(
+                        'log',
+                        $event->message,
+                        $context,
+                        $event->level
+                    );
                 }
 
-                $stackWatch->captureLog($event->message, $event->level, $event->context ?? []);
+                // Send as event
+                if ($captureAsEvents) {
+                    // Apply sampling for non-error logs
+                    $isError = in_array($event->level, ['error', 'critical', 'alert', 'emergency']);
+                    if (!$isError && $sampleRate < 1.0 && mt_rand() / mt_getrandmax() > $sampleRate) {
+                        return;
+                    }
+
+                    $stackWatch->captureLog($event->message, $event->level, $context);
+                }
+            } finally {
+                self::$isCapturingLog = false;
             }
         });
     }
