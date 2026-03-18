@@ -613,32 +613,3 @@ If you discover any security-related issues, please email security@stackwatch.de
 ## License
 
 The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
-        'max_breadcrumbs' => 50,
-        'capture_logs' => true,
-        'capture_queries' => true,
-    ],
-    
-    // Performance monitoring
-    'performance' => [
-        'enabled' => true,
-        'sample_rate' => 1.0, // 0.0 to 1.0
-        'slow_query_threshold' => 100, // ms
-    ],
-    
-    // Ignored exceptions
-    'ignored_exceptions' => [
-        \Illuminate\Auth\AuthenticationException::class,
-        \Symfony\Component\HttpKernel\Exception\NotFoundHttpException::class,
-    ],
-];
-```
-
-## Testing
-
-```bash
-composer test
-```
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
