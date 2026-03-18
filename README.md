@@ -22,7 +22,7 @@ MY PROJECT DETAILS
 ================================================================================
 - API Key: [YOUR_STACKWATCH_API_KEY]
 - Environment: [production/staging/local]
-- Laravel Version: [10/11/12]
+- Laravel Version: [8/9/10/11/12]
 
 ================================================================================
 WHAT I NEED YOU TO DO
@@ -136,8 +136,8 @@ STACKWATCH_SLOW_REQUEST_THRESHOLD=3000
 
 ## Requirements
 
-- PHP 8.1+
-- Laravel 10.x, 11.x, or 12.x
+- PHP 8.0+
+- Laravel 8.x, 9.x, 10.x, 11.x, or 12.x
 
 ## Installation
 
