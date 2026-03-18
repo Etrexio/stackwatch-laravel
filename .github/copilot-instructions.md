@@ -73,13 +73,13 @@ Format example:
 ## Code Standards
 
 ### PHP
-- PHP 8.1+ required
+- PHP 8.0+ required
 - PSR-4 autoloading
 - PSR-12 coding style
 - Use strict types where possible
 
 ### Laravel Compatibility
-- Support Laravel 10.x, 11.x, and 12.x
+- Support Laravel 8.x, 9.x, 10.x, 11.x, and 12.x
 - Test against all supported versions
 
 ### Namespace
@@ -102,6 +102,29 @@ All environment variables must:
 2. Have sensible defaults
 3. Be documented in README.md
 4. Be listed in `config/stackwatch.php`
+
+## README Documentation Rules
+
+**IMPORTANT: Keep README.md in sync with any installation or development changes.**
+
+When making changes that affect installation or usage:
+
+1. **Update Requirements section** if PHP or Laravel version requirements change
+2. **Update the AI-Assisted Installation prompt** in README.md:
+   - Laravel version list (e.g., `[8/9/10/11/12]`)
+   - Environment variables reference
+   - Any new configuration options
+   - Installation commands if they change
+3. **Update Environment Variables section** when adding/removing env vars
+4. **Update Usage examples** if API changes
+
+### AI Prompt Sync Checklist
+
+When changing `composer.json` requirements or adding features:
+- [ ] Update "Laravel Version:" in AI prompt section
+- [ ] Update "Requirements" section (PHP and Laravel versions)
+- [ ] Update "ALL ENVIRONMENT VARIABLES" block if new env vars added
+- [ ] Update "OPTIONAL INTEGRATIONS" if new integrations added
 
 ## Breaking Changes Checklist
 
