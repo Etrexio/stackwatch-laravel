@@ -14,6 +14,7 @@ use StackWatch\Laravel\Listeners\SpatieHealthListener;
 use StackWatch\Laravel\Logging\StackWatchLogChannel;
 use StackWatch\Laravel\Middleware\StackWatchMiddleware;
 use StackWatch\Laravel\Transport\HttpTransport;
+use StackWatch\Laravel\FloodProtection;
 
 class StackWatchServiceProvider extends ServiceProvider
 {
@@ -163,6 +164,11 @@ class StackWatchServiceProvider extends ServiceProvider
             self::$isCapturingLog = true;
 
             try {
+                // Flood protection - check for duplicate messages and circuit breaker
+                if (!FloodProtection::shouldAllow($event->message, $event->level, $context)) {
+                    return;
+                }
+
                 $stackWatch = app(StackWatch::class);
 
                 // Add as breadcrumb

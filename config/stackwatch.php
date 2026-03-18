@@ -129,6 +129,44 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Flood Protection
+    |--------------------------------------------------------------------------
+    |
+    | Protect against log floods that could crash your application or create
+    | massive log files. Detects duplicate messages and rate spikes.
+    |
+    */
+    'flood_protection' => [
+        // Enable/disable flood protection entirely
+        'enabled' => env('STACKWATCH_FLOOD_PROTECTION', true),
+
+        // Time window in seconds for duplicate detection
+        // Same message within this window counts as duplicate
+        'duplicate_window' => env('STACKWATCH_FLOOD_DUPLICATE_WINDOW', 60),
+
+        // Maximum times the same message can be sent within the window
+        // After this, duplicates are suppressed until window resets
+        'max_duplicates' => env('STACKWATCH_FLOOD_MAX_DUPLICATES', 5),
+
+        // Circuit breaker - trips when log volume is too high
+        // Protects against infinite loops and log storms
+        'circuit_breaker' => [
+            'enabled' => env('STACKWATCH_CIRCUIT_BREAKER', true),
+
+            // Number of logs within window that trips the breaker
+            'threshold' => env('STACKWATCH_CIRCUIT_BREAKER_THRESHOLD', 100),
+
+            // Time window in seconds for threshold detection
+            'window' => env('STACKWATCH_CIRCUIT_BREAKER_WINDOW', 10),
+
+            // Cooldown period in seconds after breaker trips
+            // During this time, all logs are blocked
+            'cooldown' => env('STACKWATCH_CIRCUIT_BREAKER_COOLDOWN', 30),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Performance Monitoring
     |--------------------------------------------------------------------------
     |

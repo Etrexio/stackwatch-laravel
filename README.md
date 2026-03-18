@@ -85,6 +85,15 @@ STACKWATCH_LOG_SAMPLE_RATE=1.0                 # Log sampling rate (0.0-1.0)
 # RATE LIMITING
 STACKWATCH_RATE_LIMIT_PER_MINUTE=60            # Max events per minute
 
+# FLOOD PROTECTION
+STACKWATCH_FLOOD_PROTECTION=true               # Enable flood protection
+STACKWATCH_FLOOD_DUPLICATE_WINDOW=60           # Seconds for duplicate detection
+STACKWATCH_FLOOD_MAX_DUPLICATES=5              # Max same message in window
+STACKWATCH_CIRCUIT_BREAKER=true                # Enable circuit breaker
+STACKWATCH_CIRCUIT_BREAKER_THRESHOLD=100       # Logs in window to trip breaker
+STACKWATCH_CIRCUIT_BREAKER_WINDOW=10           # Seconds for threshold detection
+STACKWATCH_CIRCUIT_BREAKER_COOLDOWN=30         # Cooldown after breaker trips
+
 # PERFORMANCE MONITORING
 STACKWATCH_PERFORMANCE_ENABLED=true            # Enable performance monitoring
 STACKWATCH_PERFORMANCE_GROUP_BY=path           # Group by 'path' or 'route'
@@ -557,6 +566,56 @@ php artisan stackwatch:deploy --release=$GITHUB_SHA
 | `STACKWATCH_SPATIE_BACKUP_ENABLED` | Backup integration | `true` |
 | `STACKWATCH_SPATIE_HEALTH_ENABLED` | Health integration | `true` |
 | `STACKWATCH_SPATIE_ACTIVITYLOG_ENABLED` | Activity log integration | `true` |
+| `STACKWATCH_FLOOD_PROTECTION` | Enable flood protection | `true` |
+| `STACKWATCH_FLOOD_DUPLICATE_WINDOW` | Duplicate detection window (seconds) | `60` |
+| `STACKWATCH_FLOOD_MAX_DUPLICATES` | Max same message per window | `5` |
+| `STACKWATCH_CIRCUIT_BREAKER` | Enable circuit breaker | `true` |
+| `STACKWATCH_CIRCUIT_BREAKER_THRESHOLD` | Logs to trip breaker | `100` |
+| `STACKWATCH_CIRCUIT_BREAKER_WINDOW` | Circuit breaker window (seconds) | `10` |
+| `STACKWATCH_CIRCUIT_BREAKER_COOLDOWN` | Cooldown after trip (seconds) | `30` |
+
+## Flood Protection
+
+StackWatch includes built-in flood protection to prevent log storms from crashing your application or creating massive log files.
+
+### How It Works
+
+1. **Duplicate Detection**: Same log message can only be sent 5 times per minute (configurable). Messages are normalized to ignore dynamic parts like UUIDs, timestamps, and IPs.
+
+2. **Circuit Breaker**: If 100+ logs occur within 10 seconds, the circuit breaker trips and blocks all logs for 30 seconds. This prevents infinite loops from overwhelming your system.
+
+### Configuration
+
+```php
+// config/stackwatch.php
+'flood_protection' => [
+    'enabled' => true,
+    'duplicate_window' => 60,      // seconds
+    'max_duplicates' => 5,         // same message max 5x per minute
+    'circuit_breaker' => [
+        'enabled' => true,
+        'threshold' => 100,        // 100 logs in 10 seconds trips breaker
+        'window' => 10,            // seconds
+        'cooldown' => 30,          // block all logs for 30 seconds
+    ],
+],
+```
+
+### Manual Control
+
+```php
+use StackWatch\Laravel\FloodProtection;
+
+// Check circuit breaker state
+$state = FloodProtection::getCircuitBreakerState();
+// ['status' => 'open', 'remaining_cooldown' => 15, ...]
+
+// Get statistics
+$stats = FloodProtection::getStats();
+
+// Reset flood protection (useful for testing)
+FloodProtection::reset();
+```
 
 ## Troubleshooting
 

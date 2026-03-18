@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-03-18
+
+### Added
+- **Flood Protection**: Prevents log storms and infinite loops from crashing applications
+  - Fingerprint-based duplicate detection (same message max 5x per minute by default)
+  - Circuit breaker that trips when 100+ logs occur in 10 seconds
+  - Automatic message normalization (removes UUIDs, timestamps, IPs, etc.)
+  - In-memory caching for high performance
+- New `FloodProtection` class with static methods for manual control
+- New configuration section `flood_protection` with customizable thresholds
+- Environment variables: `STACKWATCH_FLOOD_PROTECTION`, `STACKWATCH_FLOOD_DUPLICATE_WINDOW`, `STACKWATCH_FLOOD_MAX_DUPLICATES`, `STACKWATCH_CIRCUIT_BREAKER`, `STACKWATCH_CIRCUIT_BREAKER_THRESHOLD`, `STACKWATCH_CIRCUIT_BREAKER_WINDOW`, `STACKWATCH_CIRCUIT_BREAKER_COOLDOWN`
+
 ## [1.1.1] - 2026-03-18
 
 ### Fixed
