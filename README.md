@@ -6,6 +6,134 @@ AI-powered application monitoring for Laravel applications.
 [![Total Downloads](https://img.shields.io/packagist/dt/stackwatch/laravel.svg?style=flat-square)](https://packagist.org/packages/stackwatch/laravel)
 [![License](https://img.shields.io/packagist/l/stackwatch/laravel.svg?style=flat-square)](https://packagist.org/packages/stackwatch/laravel)
 
+---
+
+## 🤖 AI-Assisted Installation (For Vibe Coders)
+
+Using an AI coding assistant like GitHub Copilot, Cursor, Claude, or ChatGPT? Copy and paste the prompt below to have your AI handle the entire setup:
+
+### Example Prompt
+
+```
+Install StackWatch Laravel SDK for application monitoring in my Laravel project.
+
+My details:
+- API Key: [YOUR_STACKWATCH_API_KEY]
+- Environment: [production/staging/local]
+- Laravel Version: [10/11/12]
+
+Requirements:
+1. Install the package via Composer
+2. Run the install command or manually publish config
+3. Add necessary environment variables to .env
+4. Register the middleware for request tracking
+5. Enable log integration with auto-register
+6. Test the connection with stackwatch:test
+
+Optional integrations I want:
+- [ ] Spatie Laravel Backup monitoring
+- [ ] Spatie Laravel Health checks
+- [ ] Spatie Activity Log tracking
+- [ ] Performance monitoring with aggregation
+- [ ] Slow request alerts (threshold: ___ms)
+
+Additional context:
+- My log level preference: [debug/info/warning/error]
+- Rate limit per minute: [60]
+- I want to ignore these exceptions: [list any custom exceptions]
+```
+
+### What Your AI Will Do
+
+1. **Install Package**: `composer require stackwatch/laravel`
+2. **Run Setup**: `php artisan stackwatch:install` or manual config publish
+3. **Configure .env**: Add `STACKWATCH_API_KEY` and other settings
+4. **Add Middleware**: Register `StackWatchMiddleware` in your application
+5. **Enable Features**: Configure log capture, performance monitoring, and integrations
+6. **Verify Setup**: Run `php artisan stackwatch:test` to confirm everything works
+
+### Quick Reference for AI Agents
+
+> **Package**: `stackwatch/laravel`  
+> **Namespace**: `StackWatch\Laravel`  
+> **Facade**: `StackWatch\Laravel\Facades\StackWatch`  
+> **Middleware**: `StackWatch\Laravel\Middleware\StackWatchMiddleware`  
+> **Config File**: `config/stackwatch.php`  
+> **Install Command**: `php artisan stackwatch:install`  
+> **Test Command**: `php artisan stackwatch:test`  
+> **Deploy Command**: `php artisan stackwatch:deploy --release=VERSION`
+
+### All Environment Variables (with defaults)
+
+```env
+# ═══════════════════════════════════════════════════════════════════════════════
+# CORE SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════════
+STACKWATCH_API_KEY=your-api-key-here           # Required - Get from dashboard
+STACKWATCH_ENDPOINT=https://api.stackwatch.dev/v1  # API endpoint
+STACKWATCH_ENVIRONMENT=production              # Environment name (default: APP_ENV)
+STACKWATCH_RELEASE=                            # Release version (default: APP_VERSION)
+STACKWATCH_ENABLED=true                        # Enable/disable SDK entirely
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EXCEPTION TRACKING
+# ═══════════════════════════════════════════════════════════════════════════════
+STACKWATCH_CAPTURE_EXCEPTIONS=true             # Auto-capture exceptions
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LOG INTEGRATION
+# ═══════════════════════════════════════════════════════════════════════════════
+STACKWATCH_LOG_LEVEL=debug                     # Minimum log level to capture
+STACKWATCH_CAPTURE_LOGS_AS_EVENTS=true         # Send logs as separate events
+STACKWATCH_AUTO_REGISTER_LOG=false             # Auto-add to Laravel log stack
+STACKWATCH_LOG_SAMPLE_RATE=1.0                 # Log sampling rate (0.0-1.0)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RATE LIMITING
+# ═══════════════════════════════════════════════════════════════════════════════
+STACKWATCH_RATE_LIMIT_PER_MINUTE=60            # Max events per minute
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PERFORMANCE MONITORING
+# ═══════════════════════════════════════════════════════════════════════════════
+STACKWATCH_PERFORMANCE_ENABLED=true            # Enable performance monitoring
+STACKWATCH_PERFORMANCE_GROUP_BY=path           # Group by 'path' or 'route'
+STACKWATCH_PERFORMANCE_SAMPLE_RATE=0.1         # Sampling when aggregation disabled
+STACKWATCH_PERFORMANCE_AGGREGATE=true          # Aggregate metrics before sending
+STACKWATCH_PERFORMANCE_BATCH_SIZE=50           # Requests before sending aggregate
+STACKWATCH_PERFORMANCE_FLUSH_INTERVAL=60       # Seconds before time-based flush
+STACKWATCH_PERFORMANCE_MIN_FLUSH_COUNT=5       # Min requests for time-based flush
+STACKWATCH_SLOW_REQUEST_THRESHOLD=3000         # Slow request threshold in ms
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SPATIE INTEGRATIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+STACKWATCH_SPATIE_BACKUP_ENABLED=true          # Laravel Backup integration
+STACKWATCH_SPATIE_HEALTH_ENABLED=true          # Laravel Health integration
+STACKWATCH_SPATIE_ACTIVITYLOG_ENABLED=true     # Activity Log integration
+```
+
+### Minimum Required (Copy This)
+
+```env
+STACKWATCH_API_KEY=your-api-key-here
+STACKWATCH_ENVIRONMENT=production
+```
+
+### Recommended Production Setup
+
+```env
+STACKWATCH_API_KEY=your-api-key-here
+STACKWATCH_ENVIRONMENT=production
+STACKWATCH_AUTO_REGISTER_LOG=true
+STACKWATCH_CAPTURE_LOGS_AS_EVENTS=true
+STACKWATCH_PERFORMANCE_ENABLED=true
+STACKWATCH_PERFORMANCE_AGGREGATE=true
+STACKWATCH_SLOW_REQUEST_THRESHOLD=3000
+```
+
+---
+
 ## Features
 
 - 🔴 **Error Tracking** - Automatic exception capture with full stack traces
