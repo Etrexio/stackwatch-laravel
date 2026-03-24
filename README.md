@@ -617,6 +617,65 @@ $stats = FloodProtection::getStats();
 FloodProtection::reset();
 ```
 
+## Artisan Commands
+
+StackWatch provides several Artisan commands for managing monitoring:
+
+### Test Connection
+
+```bash
+# Test your StackWatch connection and API key
+php artisan stackwatch:test
+```
+
+### Deployment Tracking
+
+```bash
+# Notify StackWatch about a deployment
+php artisan stackwatch:deploy --release=v1.2.3
+```
+
+### Performance Buffer Management
+
+Performance metrics are aggregated in a buffer before being sent. You can manage this buffer:
+
+```bash
+# View buffer status and statistics
+php artisan stackwatch:buffer status
+
+# Force flush the buffer (sends aggregated metrics now)
+php artisan stackwatch:buffer flush
+
+# Clear the buffer without sending (discards data)
+php artisan stackwatch:buffer clear
+```
+
+Example output:
+```
+StackWatch Performance Buffer Status
+
++--------------------+-----------------------------+
+| Metric             | Value                       |
++--------------------+-----------------------------+
+| Total Requests     | 156                         |
+| Unique Transactions| 12                          |
+| Last Flush         | 2026-03-24 14:30:00         |
+| Seconds Since Flush| 1847                        |
+| Storage Path       | /var/www/storage/stackwatch |
++--------------------+-----------------------------+
+
+Buffered Transactions:
+
++---------------------------+-------+---------+--------+--------+--------+
+| Transaction               | Count | Avg     | Min    | Max    | Errors |
++---------------------------+-------+---------+--------+--------+--------+
+| GET /api/users            | 45    | 125.3ms | 45.2ms | 890.1ms| 2      |
+| POST /api/orders          | 23    | 234.5ms | 112ms  | 456ms  | 0      |
++---------------------------+-------+---------+--------+--------+--------+
+```
+
+**Note:** The performance buffer is stored in `storage/stackwatch/` directory. Make sure this directory is writable by your web server. You may want to add `storage/stackwatch/` to your `.gitignore`.
+
 ## Troubleshooting
 
 ### Events not appearing

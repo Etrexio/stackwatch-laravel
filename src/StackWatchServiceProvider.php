@@ -71,6 +71,7 @@ class StackWatchServiceProvider extends ServiceProvider
                 Console\Commands\TestCommand::class,
                 Console\Commands\DeployCommand::class,
                 Console\Commands\InstallCommand::class,
+                Console\Commands\BufferStatusCommand::class,
             ]);
         }
     }

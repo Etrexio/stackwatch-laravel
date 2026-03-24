@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-03-24
+
+### Changed
+- **Performance buffer now uses file storage instead of cache** - Buffer data is stored in `storage/stackwatch/` directory using JSON files with file locking. This ensures aggregation works reliably regardless of cache driver configuration.
+
+### Added
+- New `PerformanceBuffer` class for file-based performance data storage
+- New `stackwatch:buffer` Artisan command to manage the performance buffer:
+  - `stackwatch:buffer status` - View buffer statistics and buffered transactions
+  - `stackwatch:buffer flush` - Manually flush buffer and send aggregated metrics
+  - `stackwatch:buffer clear` - Clear buffer without sending (discards data)
+
+### Fixed
+- Performance aggregation now works with any cache driver (file, array, redis, etc.)
+- Buffer data persists reliably between HTTP requests
+
 ## [1.2.0] - 2026-03-18
 
 ### Added

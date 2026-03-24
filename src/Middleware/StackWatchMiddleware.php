@@ -4,16 +4,13 @@ namespace StackWatch\Laravel\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
+use StackWatch\Laravel\PerformanceBuffer;
 use StackWatch\Laravel\StackWatch;
 use Symfony\Component\HttpFoundation\Response;
 
 class StackWatchMiddleware
 {
     protected StackWatch $stackWatch;
-
-    private const PERF_BUFFER_KEY = 'stackwatch:perf_buffer';
-    private const PERF_LAST_FLUSH_KEY = 'stackwatch:perf_last_flush';
 
     public function __construct(StackWatch $stackWatch)
     {
@@ -125,9 +122,12 @@ class StackWatchMiddleware
             return;
         }
 
-        // Aggregation enabled - buffer the request
-        $this->bufferPerformanceData($perfData);
-        $this->checkAndFlushBuffer();
+        // Aggregation enabled - buffer the request using file-based storage
+        PerformanceBuffer::add($perfData);
+        
+        if (PerformanceBuffer::shouldFlush()) {
+            $this->flushPerformanceBuffer();
+        }
     }
 
     /**
@@ -163,89 +163,15 @@ class StackWatchMiddleware
     }
 
     /**
-     * Buffer performance data for aggregation.
-     */
-    protected function bufferPerformanceData(array $perfData): void
-    {
-        $buffer = Cache::get(self::PERF_BUFFER_KEY, []);
-        $transactionName = $perfData['name'];
-
-        if (!isset($buffer[$transactionName])) {
-            $buffer[$transactionName] = [
-                'count' => 0,
-                'total_duration' => 0,
-                'min_duration' => PHP_FLOAT_MAX,
-                'max_duration' => 0,
-                'total_memory' => 0,
-                'error_count' => 0,
-                'status_codes' => [],
-                'route' => $perfData['route'] ?? null,
-            ];
-        }
-
-        $buffer[$transactionName]['count']++;
-        $buffer[$transactionName]['total_duration'] += $perfData['duration_ms'];
-        $buffer[$transactionName]['min_duration'] = min($buffer[$transactionName]['min_duration'], $perfData['duration_ms']);
-        $buffer[$transactionName]['max_duration'] = max($buffer[$transactionName]['max_duration'], $perfData['duration_ms']);
-        $buffer[$transactionName]['total_memory'] += $perfData['memory_peak_mb'];
-        
-        if ($perfData['is_error']) {
-            $buffer[$transactionName]['error_count']++;
-        }
-
-        $statusCode = (string) $perfData['status_code'];
-        $buffer[$transactionName]['status_codes'][$statusCode] = 
-            ($buffer[$transactionName]['status_codes'][$statusCode] ?? 0) + 1;
-
-        Cache::put(self::PERF_BUFFER_KEY, $buffer, now()->addMinutes(5));
-    }
-
-    /**
-     * Check if buffer should be flushed and flush if needed.
-     */
-    protected function checkAndFlushBuffer(): void
-    {
-        $buffer = Cache::get(self::PERF_BUFFER_KEY, []);
-        $totalCount = array_sum(array_column($buffer, 'count'));
-        
-        $batchSize = config('stackwatch.performance.aggregate.batch_size', 50);
-        $flushInterval = config('stackwatch.performance.aggregate.flush_interval', 60);
-        $minFlushCount = config('stackwatch.performance.aggregate.min_flush_count', 5);
-        
-        // Initialize last flush time if not set
-        $lastFlush = Cache::get(self::PERF_LAST_FLUSH_KEY);
-        if ($lastFlush === null) {
-            Cache::put(self::PERF_LAST_FLUSH_KEY, time(), now()->addMinutes(5));
-            return; // Don't flush on first request, start accumulating
-        }
-        
-        $timeSinceLastFlush = time() - $lastFlush;
-
-        // Flush if:
-        // 1. Batch size reached (always flush)
-        // 2. OR interval passed AND minimum count reached
-        $shouldFlush = $totalCount >= $batchSize || 
-                       ($totalCount >= $minFlushCount && $timeSinceLastFlush >= $flushInterval);
-        
-        if ($shouldFlush) {
-            $this->flushPerformanceBuffer();
-        }
-    }
-
-    /**
      * Flush the performance buffer and send aggregated metrics.
      */
     protected function flushPerformanceBuffer(): void
     {
-        $buffer = Cache::get(self::PERF_BUFFER_KEY, []);
+        $buffer = PerformanceBuffer::flush();
         
         if (empty($buffer)) {
             return;
         }
-
-        // Clear buffer first
-        Cache::forget(self::PERF_BUFFER_KEY);
-        Cache::put(self::PERF_LAST_FLUSH_KEY, time(), now()->addMinutes(5));
 
         // Send aggregated metrics for each transaction
         foreach ($buffer as $transactionName => $data) {
