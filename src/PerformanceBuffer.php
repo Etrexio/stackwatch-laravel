@@ -194,34 +194,85 @@ class PerformanceBuffer
     }
 
     /**
-     * Check if flush conditions are met.
+     * Flush only specific transactions and return their data.
+     * Leaves other transactions in the buffer.
      */
-    public static function shouldFlush(): bool
+    public static function flushTransactions(array $transactionNames): array
     {
-        $totalCount = self::getTotalCount();
+        return self::withLock(self::getFilePath(self::BUFFER_FILE), function () use ($transactionNames) {
+            $buffer = self::readFile(self::BUFFER_FILE);
+            $flushed = [];
+
+            foreach ($transactionNames as $name) {
+                if (isset($buffer[$name])) {
+                    $flushed[$name] = $buffer[$name];
+                    unset($buffer[$name]);
+                }
+            }
+
+            self::writeFile(self::BUFFER_FILE, $buffer);
+            
+            if (!empty($flushed)) {
+                self::setLastFlushTime(time());
+            }
+
+            return $flushed;
+        });
+    }
+
+    /**
+     * Get transactions that are ready to be flushed.
+     * A transaction is ready when its count reaches batch_size,
+     * OR when flush_interval has passed AND count >= min_flush_count.
+     * 
+     * @return array List of transaction names ready to flush
+     */
+    public static function getReadyTransactions(): array
+    {
+        $buffer = self::getBuffer();
         
-        if ($totalCount === 0) {
-            return false;
+        if (empty($buffer)) {
+            return [];
         }
 
         $batchSize = config('stackwatch.performance.aggregate.batch_size', 50);
         $flushInterval = config('stackwatch.performance.aggregate.flush_interval', 60);
         $minFlushCount = config('stackwatch.performance.aggregate.min_flush_count', 5);
         
-        // Initialize last flush time if not set
         $lastFlush = self::getLastFlushTime();
         if ($lastFlush === null) {
             self::setLastFlushTime(time());
-            return false; // Don't flush on first request, start accumulating
+            return []; // Don't flush on first request, start accumulating
         }
         
         $timeSinceLastFlush = time() - $lastFlush;
+        $timeBasedFlushAllowed = $timeSinceLastFlush >= $flushInterval;
 
-        // Flush if:
-        // 1. Batch size reached (always flush)
-        // 2. OR interval passed AND minimum count reached
-        return $totalCount >= $batchSize || 
-               ($totalCount >= $minFlushCount && $timeSinceLastFlush >= $flushInterval);
+        $ready = [];
+
+        foreach ($buffer as $transactionName => $data) {
+            $count = $data['count'];
+            
+            // Transaction is ready if:
+            // 1. Its count reached batch_size (always flush)
+            // 2. OR time interval passed AND its count >= min_flush_count
+            if ($count >= $batchSize) {
+                $ready[] = $transactionName;
+            } elseif ($timeBasedFlushAllowed && $count >= $minFlushCount) {
+                $ready[] = $transactionName;
+            }
+        }
+
+        return $ready;
+    }
+
+    /**
+     * Check if any transactions are ready to flush.
+     * @deprecated Use getReadyTransactions() instead
+     */
+    public static function shouldFlush(): bool
+    {
+        return !empty(self::getReadyTransactions());
     }
 
     /**

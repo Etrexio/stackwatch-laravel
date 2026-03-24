@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-03-24
+
+### Changed
+- **Per-transaction batch size enforcement** - Each transaction now independently waits until it reaches `batch_size` (default: 50) before being sent. Previously, the total count across all transactions was used, causing premature flushes.
+- Transactions that haven't reached batch_size stay in the buffer while ready ones are flushed
+
+### Improved
+- `stackwatch:buffer status` now shows count progress (e.g., "23/50") and ready status for each transaction
+
 ## [1.2.1] - 2026-03-24
 
 ### Changed

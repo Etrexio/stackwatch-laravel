@@ -44,12 +44,19 @@ class BufferStatusCommand extends Command
             $this->newLine();
             $this->info('Buffered Transactions:');
             
+            $batchSize = config('stackwatch.performance.aggregate.batch_size', 50);
+            $readyTransactions = PerformanceBuffer::getReadyTransactions();
+            
             $rows = [];
             foreach ($buffer as $name => $data) {
                 $avgDuration = $data['count'] > 0 ? round($data['total_duration'] / $data['count'], 2) : 0;
+                $isReady = in_array($name, $readyTransactions);
+                $progress = $data['count'] . '/' . $batchSize;
+                
                 $rows[] = [
                     $name,
-                    $data['count'],
+                    $progress,
+                    $isReady ? '✓ Ready' : 'Waiting',
                     $avgDuration . 'ms',
                     round($data['min_duration'], 2) . 'ms',
                     round($data['max_duration'], 2) . 'ms',
@@ -58,9 +65,14 @@ class BufferStatusCommand extends Command
             }
             
             $this->table(
-                ['Transaction', 'Count', 'Avg', 'Min', 'Max', 'Errors'],
+                ['Transaction', 'Count', 'Status', 'Avg', 'Min', 'Max', 'Errors'],
                 $rows
             );
+            
+            if (!empty($readyTransactions)) {
+                $this->newLine();
+                $this->info(count($readyTransactions) . ' transaction(s) ready to flush.');
+            }
         }
 
         // Show config

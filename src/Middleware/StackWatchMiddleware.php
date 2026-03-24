@@ -125,8 +125,10 @@ class StackWatchMiddleware
         // Aggregation enabled - buffer the request using file-based storage
         PerformanceBuffer::add($perfData);
         
-        if (PerformanceBuffer::shouldFlush()) {
-            $this->flushPerformanceBuffer();
+        // Check if any transactions are ready to flush
+        $readyTransactions = PerformanceBuffer::getReadyTransactions();
+        if (!empty($readyTransactions)) {
+            $this->flushReadyTransactions($readyTransactions);
         }
     }
 
@@ -163,7 +165,23 @@ class StackWatchMiddleware
     }
 
     /**
-     * Flush the performance buffer and send aggregated metrics.
+     * Flush only the transactions that are ready (reached batch_size or time+min_count).
+     * Other transactions stay in the buffer until they're ready.
+     */
+    protected function flushReadyTransactions(array $transactionNames): void
+    {
+        $buffer = PerformanceBuffer::flushTransactions($transactionNames);
+        
+        if (empty($buffer)) {
+            return;
+        }
+
+        $this->sendAggregatedMetrics($buffer);
+    }
+
+    /**
+     * Flush the entire performance buffer and send aggregated metrics.
+     * Used by artisan command for manual flush.
      */
     protected function flushPerformanceBuffer(): void
     {
@@ -173,6 +191,14 @@ class StackWatchMiddleware
             return;
         }
 
+        $this->sendAggregatedMetrics($buffer);
+    }
+
+    /**
+     * Send aggregated metrics for the given buffer data.
+     */
+    protected function sendAggregatedMetrics(array $buffer): void
+    {
         // Send aggregated metrics for each transaction
         foreach ($buffer as $transactionName => $data) {
             if ($data['count'] === 0) {
