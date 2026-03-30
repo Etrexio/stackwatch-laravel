@@ -112,9 +112,9 @@ class SpatieBackupListener
         $this->stackWatch->captureEvent('backup', 'info', 'Backup health check passed', [
             'disk' => $event->backupDestinationStatus?->backupDestination()?->diskName() ?? 'unknown',
             'status' => 'healthy',
-            'amount_of_backups' => $event->backupDestinationStatus?->amountOfBackups() ?? 0,
-            'newest_backup_age_in_days' => $event->backupDestinationStatus?->newestBackupAgeInDays() ?? null,
-            'used_storage' => $this->formatSize($event->backupDestinationStatus?->usedStorage() ?? 0),
+            'amount_of_backups' => $this->getBackupCount($event->backupDestinationStatus),
+            'newest_backup_age_in_days' => $this->getNewestBackupAge($event->backupDestinationStatus),
+            'used_storage' => $this->formatSize($this->getUsedStorage($event->backupDestinationStatus)),
         ]);
     }
 
@@ -123,20 +123,14 @@ class SpatieBackupListener
      */
     public function handleUnhealthyBackupWasFound($event): void
     {
-        $failures = [];
-        if ($event->backupDestinationStatus?->getHealthCheckFailure()) {
-            $failures = array_map(
-                fn($check) => $check->getMessage(),
-                $event->backupDestinationStatus->getHealthCheckFailure()->toArray()
-            );
-        }
+        $failures = $this->getHealthCheckFailures($event->backupDestinationStatus);
 
         $this->stackWatch->captureEvent('backup', 'error', 'Backup health check failed', [
             'disk' => $event->backupDestinationStatus?->backupDestination()?->diskName() ?? 'unknown',
             'status' => 'unhealthy',
             'failures' => $failures,
-            'amount_of_backups' => $event->backupDestinationStatus?->amountOfBackups() ?? 0,
-            'newest_backup_age_in_days' => $event->backupDestinationStatus?->newestBackupAgeInDays() ?? null,
+            'amount_of_backups' => $this->getBackupCount($event->backupDestinationStatus),
+            'newest_backup_age_in_days' => $this->getNewestBackupAge($event->backupDestinationStatus),
         ]);
 
         $this->stackWatch->addBreadcrumb('backup', 'Unhealthy backup detected', [
@@ -156,6 +150,118 @@ class SpatieBackupListener
         $bytes /= pow(1024, $pow);
 
         return round($bytes, 2) . ' ' . $units[$pow];
+    }
+
+    /**
+     * Get backup count from BackupDestinationStatus (compatible with Spatie Backup v7 and v8+).
+     */
+    protected function getBackupCount($status): int
+    {
+        if (!$status) {
+            return 0;
+        }
+
+        // Spatie Backup v7
+        if (method_exists($status, 'amountOfBackups')) {
+            return $status->amountOfBackups();
+        }
+
+        // Spatie Backup v8+
+        try {
+            return $status->backupDestination()?->backups()?->count() ?? 0;
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
+     * Get newest backup age from BackupDestinationStatus (compatible with Spatie Backup v7 and v8+).
+     */
+    protected function getNewestBackupAge($status): ?float
+    {
+        if (!$status) {
+            return null;
+        }
+
+        // Spatie Backup v7
+        if (method_exists($status, 'newestBackupAgeInDays')) {
+            return $status->newestBackupAgeInDays();
+        }
+
+        // Spatie Backup v8+
+        try {
+            $newestBackup = $status->backupDestination()?->newestBackup();
+            if ($newestBackup && method_exists($newestBackup, 'date')) {
+                return $newestBackup->date()->diffInDays(now());
+            }
+        } catch (\Throwable) {
+            // Ignore
+        }
+
+        return null;
+    }
+
+    /**
+     * Get used storage from BackupDestinationStatus (compatible with Spatie Backup v7 and v8+).
+     */
+    protected function getUsedStorage($status): int
+    {
+        if (!$status) {
+            return 0;
+        }
+
+        // Spatie Backup v7
+        if (method_exists($status, 'usedStorage')) {
+            return $status->usedStorage();
+        }
+
+        // Spatie Backup v8+
+        try {
+            return $status->backupDestination()?->usedStorage() ?? 0;
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
+     * Get health check failures from BackupDestinationStatus.
+     */
+    protected function getHealthCheckFailures($status): array
+    {
+        if (!$status) {
+            return [];
+        }
+
+        try {
+            // Spatie Backup v7
+            if (method_exists($status, 'getHealthCheckFailure')) {
+                $failures = $status->getHealthCheckFailure();
+                if ($failures) {
+                    return array_map(
+                        fn($check) => $check->getMessage(),
+                        $failures->toArray()
+                    );
+                }
+            }
+
+            // Spatie Backup v8+
+            if (method_exists($status, 'getHealthChecks')) {
+                $checks = $status->getHealthChecks();
+                $failures = [];
+                foreach ($checks as $check) {
+                    if (method_exists($check, 'hasFailed') && $check->hasFailed()) {
+                        $failures[] = method_exists($check, 'getMessage') 
+                            ? $check->getMessage() 
+                            : (string) $check;
+                    }
+                }
+                return $failures;
+            }
+        } catch (\Throwable) {
+            // Ignore
+        }
+
+        return [];
     }
 
     /**
