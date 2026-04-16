@@ -11,8 +11,7 @@ class InstallCommand extends Command
     protected $signature = 'stackwatch:install 
                             {--api-key= : Your StackWatch API key}
                             {--endpoint= : Custom API endpoint (for self-hosted)}
-                            {--queue= : Queue connection to use (sync/redis/database)}
-                            {--no-interaction : Run without prompts}';
+                            {--queue= : Queue connection to use (sync/redis/database)}';
 
     protected $description = 'Install and configure StackWatch for your Laravel application';
 
