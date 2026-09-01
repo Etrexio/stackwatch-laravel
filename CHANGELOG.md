@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-09-01
+
+### Fixed
+- **Logs are no longer sent twice** - With `STACKWATCH_AUTO_REGISTER_LOG=true` (or the `stackwatch` channel added manually to `config/logging.php`) every log was captured by both the channel handler and the `MessageLogged` listener, producing two events. The listener already captures every log whatever channel it is written to, so the channel handler now defers to it while log capture is active (`stackwatch.log_listener` container binding).
+- **Reported exceptions are no longer sent twice** - Laravel writes a log line (`exception` in context) for every reported exception; that line produced an extra `log` event (and, with the channel registered, a third `error` event). The listener now skips log lines for exceptions already captured by the exception handler (`StackWatch::hasCapturedException()`, weak-referenced).
+- **`Log::error()` with an `exception` in context** now produces one rich exception event (stack trace, `log_message` + the remaining log context) instead of a flat log event; ignored / disabled exceptions still fall back to a plain log event.
+
+### Added
+- `StackWatch::shouldCaptureException()` and `StackWatch::hasCapturedException()`.
+
 ## [1.2.5] - 2026-09-01
 
 ### Fixed

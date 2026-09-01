@@ -19,6 +19,13 @@ use StackWatch\Laravel\FloodProtection;
 class StackWatchServiceProvider extends ServiceProvider
 {
     /**
+     * Container binding set once the MessageLogged listener is registered.
+     * The "stackwatch" log channel handler checks it to avoid sending every
+     * log twice.
+     */
+    public const LOG_LISTENER_BINDING = 'stackwatch.log_listener';
+
+    /**
      * Static flag to prevent recursive log capture.
      */
     private static bool $isCapturingLog = false;
@@ -141,6 +148,9 @@ class StackWatchServiceProvider extends ServiceProvider
         $levels = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
         $minLevelIndex = array_search($minLevel, $levels);
 
+        // Let the log channel handler know the listener captures logs
+        $this->app->instance(self::LOG_LISTENER_BINDING, true);
+
         Event::listen(MessageLogged::class, function (MessageLogged $event) use (
             $captureAsEvents, $captureBreadcrumbs, $levels, $minLevelIndex, $sampleRate
         ) {
@@ -184,8 +194,30 @@ class StackWatchServiceProvider extends ServiceProvider
 
                 // Send as event
                 if ($captureAsEvents) {
-                    // Apply sampling for non-error logs
                     $isError = in_array($event->level, ['error', 'critical', 'alert', 'emergency']);
+                    $exception = $context['exception'] ?? null;
+
+                    if ($isError && $exception instanceof \Throwable) {
+                        // Laravel writes a log line for every reported
+                        // exception; that occurrence was already sent by the
+                        // exception handler - don't report it a second time.
+                        if ($stackWatch->hasCapturedException($exception)) {
+                            return;
+                        }
+
+                        // Logged manually with an exception: send one rich
+                        // exception event (stack trace) instead of a log event.
+                        if ($stackWatch->shouldCaptureException($exception)) {
+                            $exceptionContext = $context;
+                            unset($exceptionContext['exception']);
+                            $exceptionContext['log_message'] = $event->message;
+
+                            $stackWatch->captureException($exception, $exceptionContext);
+                            return;
+                        }
+                    }
+
+                    // Apply sampling for non-error logs
                     if (!$isError && $sampleRate < 1.0 && mt_rand() / mt_getrandmax() > $sampleRate) {
                         return;
                     }

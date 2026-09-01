@@ -67,18 +67,17 @@ class LogCaptureTest extends TestCase
         $this->assertCount(0, $this->sent);
     }
 
-    public function test_log_channel_handler_skips_internal_sdk_logs(): void
+    public function test_log_channel_handler_defers_to_listener(): void
     {
-        // The custom "stackwatch" log channel (Monolog logger + handler)
+        // The custom "stackwatch" log channel (Monolog logger + handler).
+        // While the MessageLogged listener is registered the handler must not
+        // send anything - neither SDK diagnostics nor regular logs - otherwise
+        // every log written through the channel would be delivered twice.
         $logger = (new StackWatchLogChannel())(['level' => 'debug']);
 
         $logger->debug('StackWatch: Retry attempt 1 after error: ...', ['stackwatch_internal' => true]);
-
-        $this->assertCount(0, $this->sent, 'internal diagnostics must never be shipped to the API');
-
         $logger->info('regular application log');
 
-        $this->assertCount(1, $this->sent);
-        $this->assertSame('regular application log', $this->sent[0]['message']);
+        $this->assertCount(0, $this->sent);
     }
 }

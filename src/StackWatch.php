@@ -32,9 +32,18 @@ class StackWatch
     protected array $tags = [];
     protected array $extra = [];
 
+    /**
+     * Exceptions already reported in this process (weak refs: entries vanish
+     * with the exception object). Used to avoid reporting the same
+     * occurrence twice, e.g. once through the exception handler and once
+     * through the log line Laravel writes for it.
+     */
+    protected \WeakMap $capturedExceptions;
+
     public function __construct(HttpTransport $transport)
     {
         $this->transport = $transport;
+        $this->capturedExceptions = new \WeakMap();
     }
 
     /**
@@ -46,9 +55,28 @@ class StackWatch
             return null;
         }
 
+        $this->capturedExceptions[$exception] = true;
+
         $event = $this->buildExceptionEvent($exception, $context);
 
         return $this->transport->send($event);
+    }
+
+    /**
+     * Whether captureException() would report this exception
+     * (enabled, capture_exceptions on, not in ignored_exceptions).
+     */
+    public function shouldCaptureException(Throwable $exception): bool
+    {
+        return $this->shouldCapture($exception);
+    }
+
+    /**
+     * Whether this exact exception object was already reported.
+     */
+    public function hasCapturedException(Throwable $exception): bool
+    {
+        return isset($this->capturedExceptions[$exception]);
     }
 
     /**

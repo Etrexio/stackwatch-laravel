@@ -6,6 +6,7 @@ use Monolog\Handler\AbstractProcessingHandler;
 use Monolog\Logger;
 use Monolog\LogRecord;
 use StackWatch\Laravel\StackWatch;
+use StackWatch\Laravel\StackWatchServiceProvider;
 
 class StackWatchLogChannel
 {
@@ -61,6 +62,14 @@ class StackWatchHandler extends AbstractProcessingHandler
         // Never ship the SDK's own diagnostics (retry/failure logs) back to
         // the API - that would loop on a failing event.
         if (!empty($record->context['stackwatch_internal'])) {
+            return;
+        }
+
+        // The MessageLogged listener already captures every log (whatever
+        // channel it was written to). Sending from this handler as well
+        // would deliver each log twice, so defer to the listener when it
+        // is registered; the handler only acts when log capture is off.
+        if (app()->bound(StackWatchServiceProvider::LOG_LISTENER_BINDING)) {
             return;
         }
 

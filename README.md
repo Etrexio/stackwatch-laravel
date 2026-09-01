@@ -280,21 +280,26 @@ StackWatch::addBreadcrumb('api', 'Called payment API', [
 
 ## Log Integration
 
-StackWatch can capture all Laravel logs as separate events.
-
-### Option 1: Auto-register (Recommended)
-
-Add to `.env`:
+StackWatch captures every Laravel log automatically through the `MessageLogged`
+event - whatever channel it is written to - so no logging configuration is
+required. Tune it with:
 
 ```env
-STACKWATCH_AUTO_REGISTER_LOG=true
 STACKWATCH_LOG_LEVEL=debug
 STACKWATCH_CAPTURE_LOGS_AS_EVENTS=true
 ```
 
-### Option 2: Manual Configuration
+Each log is sent **once**. Reported exceptions are sent once as well: the log
+line Laravel writes for an exception that was already captured by the exception
+handler is skipped, and `Log::error('...', ['exception' => $e])` produces a
+single exception event (with stack trace) instead of a plain log event.
 
-In `config/logging.php`:
+### Optional: the `stackwatch` log channel
+
+The package also registers a `stackwatch` log channel. `STACKWATCH_AUTO_REGISTER_LOG=true`
+adds it to your `stack`, or add it manually in `config/logging.php`. It is kept
+for backwards compatibility - while automatic log capture is active the channel
+is a no-op, so it never duplicates events.
 
 ```php
 'channels' => [
@@ -564,7 +569,7 @@ php artisan stackwatch:deploy --release=$GITHUB_SHA
 | `STACKWATCH_CAPTURE_EXCEPTIONS` | Auto-capture exceptions | `true` |
 | `STACKWATCH_LOG_LEVEL` | Minimum log level | `debug` |
 | `STACKWATCH_CAPTURE_LOGS_AS_EVENTS` | Send logs as events | `true` |
-| `STACKWATCH_AUTO_REGISTER_LOG` | Auto-add to log stack | `false` |
+| `STACKWATCH_AUTO_REGISTER_LOG` | Add the `stackwatch` channel to the log stack (optional - logs are captured automatically) | `false` |
 | `STACKWATCH_LOG_SAMPLE_RATE` | Log sampling rate (0-1) | `1.0` |
 | `STACKWATCH_MAX_MESSAGE_LENGTH` | Max message length; longer messages are split | `25000` |
 | `STACKWATCH_RATE_LIMIT_PER_MINUTE` | Rate limit | `60` |
