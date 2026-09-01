@@ -3,11 +3,28 @@
 namespace StackWatch\Laravel;
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use StackWatch\Laravel\Transport\HttpTransport;
 use Throwable;
 
 class StackWatch
 {
+    /**
+     * Maximum message length accepted by the StackWatch API (characters).
+     * Longer messages are split into several "[part i/n]" events.
+     */
+    public const DEFAULT_MAX_MESSAGE_LENGTH = 25000;
+
+    /**
+     * Maximum stack trace length accepted by the exception endpoint.
+     */
+    public const MAX_STACK_TRACE_LENGTH = 50000;
+
+    /**
+     * Characters reserved for the "[part i/n] " prefix on split messages.
+     */
+    protected const PART_PREFIX_RESERVE = 20;
+
     protected HttpTransport $transport;
     protected array $context = [];
     protected array $breadcrumbs = [];
@@ -41,7 +58,7 @@ class StackWatch
     {
         $event = $this->buildMessageEvent($message, $level, $context);
 
-        return $this->transport->send($event);
+        return $this->sendChunked($event);
     }
 
     /**
@@ -90,7 +107,7 @@ class StackWatch
             'tags' => $this->tags,
         ];
 
-        return $this->transport->send($event);
+        return $this->sendChunked($event);
     }
 
     /**
@@ -116,7 +133,7 @@ class StackWatch
             'extra' => $this->extra,
         ];
 
-        return $this->transport->send($event);
+        return $this->sendChunked($event);
     }
 
     /**
@@ -270,20 +287,24 @@ class StackWatch
      */
     protected function buildExceptionEvent(Throwable $exception, array $context = []): array
     {
+        // An exception must stay a single event (one stack trace), so the
+        // message is truncated instead of split.
+        $message = $this->truncate($exception->getMessage(), $this->maxMessageLength());
+
         return [
             'type' => 'error',
             'timestamp' => now()->toIso8601String(),
             'environment' => config('stackwatch.environment'),
             'release' => config('stackwatch.release'),
             'level' => 'error',
-            'message' => $exception->getMessage(),
+            'message' => $message,
             'exception' => [
                 'type' => get_class($exception),
-                'message' => $exception->getMessage(),
+                'message' => $message,
                 'code' => $exception->getCode(),
                 'file' => $exception->getFile(),
                 'line' => $exception->getLine(),
-                'stack_trace' => $this->formatStackTrace($exception),
+                'stack_trace' => $this->truncate($this->formatStackTrace($exception), self::MAX_STACK_TRACE_LENGTH),
             ],
             'breadcrumbs' => $this->breadcrumbs,
             'context' => array_merge($this->getFullContext(), $context),
@@ -343,6 +364,87 @@ class StackWatch
         }
 
         return $sanitized;
+    }
+
+    /**
+     * Maximum message length accepted by the API.
+     */
+    protected function maxMessageLength(): int
+    {
+        $max = (int) config('stackwatch.max_message_length', self::DEFAULT_MAX_MESSAGE_LENGTH);
+
+        return max(self::PART_PREFIX_RESERVE + 1, $max);
+    }
+
+    /**
+     * Split a message into API-sized chunks (multibyte safe).
+     * Returns a single-element array when the message already fits.
+     */
+    protected function splitMessage(string $message): array
+    {
+        $max = $this->maxMessageLength();
+
+        if (mb_strlen($message) <= $max) {
+            return [$message];
+        }
+
+        return mb_str_split($message, $max - self::PART_PREFIX_RESERVE);
+    }
+
+    /**
+     * Send an event, splitting an oversized message into several
+     * "[part i/n]" events that share a `message_part.group` id.
+     * Short messages are sent unchanged.
+     */
+    protected function sendChunked(array $event): ?string
+    {
+        $message = (string) ($event['message'] ?? '');
+        $parts = $this->splitMessage($message);
+
+        if (count($parts) <= 1) {
+            return $this->transport->send($event);
+        }
+
+        $total = count($parts);
+        $groupId = (string) Str::uuid();
+        $originalLength = mb_strlen($message);
+        $result = null;
+
+        foreach ($parts as $index => $chunk) {
+            $number = $index + 1;
+
+            $partEvent = $event;
+            $partEvent['message'] = "[part {$number}/{$total}] " . $chunk;
+            $partEvent['context'] = array_merge($event['context'] ?? [], [
+                'message_part' => [
+                    'index' => $number,
+                    'total' => $total,
+                    'group' => $groupId,
+                    'original_length' => $originalLength,
+                ],
+            ]);
+
+            $partResult = $this->transport->send($partEvent);
+
+            // Report the first successfully sent part's id
+            $result ??= $partResult;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Truncate a string to a maximum length (multibyte safe), marking the cut.
+     */
+    protected function truncate(string $value, int $max): string
+    {
+        if (mb_strlen($value) <= $max) {
+            return $value;
+        }
+
+        $marker = '… [truncated]';
+
+        return mb_substr($value, 0, max(0, $max - mb_strlen($marker))) . $marker;
     }
 
     /**

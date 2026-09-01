@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2026-09-01
+
+### Fixed
+- **Oversized messages no longer fail with HTTP 422** - The API accepts at most 25000 characters per message. Log, message and custom event messages that exceed the limit are now split into several `[part i/n]` events (linked by `context.message_part` with `index`, `total`, `group` and `original_length`) instead of being rejected. Exception messages are truncated (an exception stays a single event), stack traces are capped at 50000 characters.
+- **Rejected events no longer loop forever** - A 4xx response other than 429 (e.g. validation failed, invalid API key) is permanent, yet the transport retried it 3 times and then re-buffered it, replaying the same rejected event after every successful send. Such events are now logged once and dropped; retry + buffering remains for 5xx and network errors.
+- **Incremental buffer flush no longer drops the remaining events** - `tryFlushBuffer()` stopped at the first failed event and silently discarded the rest of the slice; it now skips permanently rejected events and re-buffers the remaining ones when rate limited.
+- **Batch flush recovers from a single bad event** - When the API rejects a batch (4xx), events are re-sent individually so only the invalid ones are dropped instead of re-buffering the whole batch.
+- **SDK diagnostics are not shipped back to the API** - The `stackwatch` log channel handler now skips records flagged `stackwatch_internal` (the `MessageLogged` listener already did).
+
+### Added
+- `max_message_length` config option / `STACKWATCH_MAX_MESSAGE_LENGTH` env (default `25000`).
+
 ## [1.2.4] - 2026-04-16
 
 ### Fixed

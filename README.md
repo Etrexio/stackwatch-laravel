@@ -320,6 +320,18 @@ To reduce volume for high-traffic applications:
 STACKWATCH_LOG_SAMPLE_RATE=0.1
 ```
 
+### Long Messages
+
+The API accepts messages up to 25000 characters. Longer log/message/custom
+event messages are automatically split into several `[part 1/3] …`,
+`[part 2/3] …` events that share a `context.message_part.group` id, so nothing
+is lost or rejected. Exception messages are truncated instead (an exception
+stays a single event). The limit can be lowered:
+
+```env
+STACKWATCH_MAX_MESSAGE_LENGTH=25000
+```
+
 ## Middleware
 
 Add the middleware to capture request context and performance data:
@@ -554,6 +566,7 @@ php artisan stackwatch:deploy --release=$GITHUB_SHA
 | `STACKWATCH_CAPTURE_LOGS_AS_EVENTS` | Send logs as events | `true` |
 | `STACKWATCH_AUTO_REGISTER_LOG` | Auto-add to log stack | `false` |
 | `STACKWATCH_LOG_SAMPLE_RATE` | Log sampling rate (0-1) | `1.0` |
+| `STACKWATCH_MAX_MESSAGE_LENGTH` | Max message length; longer messages are split | `25000` |
 | `STACKWATCH_RATE_LIMIT_PER_MINUTE` | Rate limit | `60` |
 | `STACKWATCH_PERFORMANCE_ENABLED` | Performance monitoring | `true` |
 | `STACKWATCH_PERFORMANCE_GROUP_BY` | Group by 'path' or 'route' | `path` |

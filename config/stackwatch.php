@@ -69,6 +69,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Maximum Message Length
+    |--------------------------------------------------------------------------
+    |
+    | The StackWatch API accepts messages up to 25000 characters. Longer
+    | log/message/custom event messages are split into several "[part i/n]"
+    | events (linked by context.message_part.group); exception messages are
+    | truncated. Lower this if your plan enforces a smaller limit.
+    |
+    */
+    'max_message_length' => env('STACKWATCH_MAX_MESSAGE_LENGTH', 25000),
+
+    /*
+    |--------------------------------------------------------------------------
     | Capture Breadcrumbs
     |--------------------------------------------------------------------------
     |

@@ -4,6 +4,7 @@ namespace StackWatch\Laravel\Transport;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\RequestOptions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -144,11 +145,18 @@ class HttpTransport
         }
 
         // Send buffered events one by one
-        foreach ($toSend as $event) {
+        foreach ($toSend as $index => $event) {
             $result = $this->sendNow($event);
-            
-            // If we hit rate limit, re-buffer remaining events
-            if ($result === null || $result === 'buffered') {
+
+            // 'buffered' means the API is rate limiting us or unreachable
+            // (sendNow already re-buffered this event): put the remaining
+            // events back and stop. null means the event was dropped for
+            // good (rejected by the API) - carry on with the next one.
+            if ($result === 'buffered') {
+                foreach (array_slice($toSend, $index + 1) as $pending) {
+                    $this->bufferEvent($pending);
+                }
+
                 break;
             }
         }
@@ -194,10 +202,27 @@ class HttpTransport
 
                 return $body['event_id'] ?? 'sent';
             } catch (GuzzleException $e) {
+                $statusCode = $this->getStatusCode($e);
+
                 // Check if this is a rate limit response (429)
-                if ($e->getCode() === 429) {
+                if ($statusCode === 429) {
                     Log::debug('StackWatch: Rate limited by server, buffering event', ['stackwatch_internal' => true]);
                     return $this->bufferEvent($event);
+                }
+
+                // Other 4xx responses are permanent (validation failed, bad
+                // API key, ...): retrying or buffering would replay the same
+                // rejected event forever, so drop it right away.
+                if ($this->isPermanentClientError($statusCode)) {
+                    Log::warning('StackWatch: Event rejected by API, dropping event', [
+                        'stackwatch_internal' => true,
+                        'endpoint' => $endpoint ?? 'unknown',
+                        'error' => $e->getMessage(),
+                        'code' => $statusCode,
+                        'event_type' => $event['type'] ?? 'unknown',
+                    ]);
+
+                    return null;
                 }
 
                 $attempt++;
@@ -225,6 +250,26 @@ class HttpTransport
         }
 
         return null;
+    }
+
+    /**
+     * HTTP status code of a failed request (0 for network errors).
+     */
+    protected function getStatusCode(GuzzleException $e): int
+    {
+        if ($e instanceof RequestException && $e->hasResponse()) {
+            return $e->getResponse()->getStatusCode();
+        }
+
+        return (int) $e->getCode();
+    }
+
+    /**
+     * 4xx responses other than 429 will not succeed on retry.
+     */
+    protected function isPermanentClientError(int $statusCode): bool
+    {
+        return $statusCode >= 400 && $statusCode < 500 && $statusCode !== 429;
     }
 
     /**
@@ -281,6 +326,29 @@ class HttpTransport
                 // Increment rate limit for batch
                 $this->incrementRateLimit();
             } catch (GuzzleException $e) {
+                $statusCode = $this->getStatusCode($e);
+
+                // A single invalid event fails the whole batch. Send the
+                // events one by one so only the rejected ones are dropped
+                // (sendNow handles 4xx / 429 / transient errors per event).
+                if ($this->isPermanentClientError($statusCode)) {
+                    Log::debug('StackWatch: Batch rejected by API, sending events individually', [
+                        'stackwatch_internal' => true,
+                        'error' => $e->getMessage(),
+                        'code' => $statusCode,
+                    ]);
+
+                    foreach ($chunk as $event) {
+                        $result = $this->sendNow($event);
+
+                        if ($result !== null && $result !== 'buffered') {
+                            $results[] = $result;
+                        }
+                    }
+
+                    continue;
+                }
+
                 Log::warning('StackWatch: Failed to send batch', ['stackwatch_internal' => true, 'error' => $e->getMessage()]);
                 
                 // Re-buffer failed events

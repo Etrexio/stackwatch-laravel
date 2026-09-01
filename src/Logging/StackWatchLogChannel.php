@@ -58,6 +58,12 @@ class StackWatchHandler extends AbstractProcessingHandler
 
     protected function write(LogRecord $record): void
     {
+        // Never ship the SDK's own diagnostics (retry/failure logs) back to
+        // the API - that would loop on a failing event.
+        if (!empty($record->context['stackwatch_internal'])) {
+            return;
+        }
+
         // Apply sampling rate for non-error logs to prevent overwhelming the API
         $level = strtolower($record->level->name);
         
